@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(./gradlew:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(ss:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(sudo pkill:*)",
+      "Bash(kill:*)",
+      "Bash(timeout:*)",
+      "Bash(rm:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun --console=plain)",
+      "Bash(SPRING_PROFILES_ACTIVE=dev ./gradlew clean build)",
+      "Bash(SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun --debug --console=plain)",
+      "Bash(SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun)",
+      "Bash(true)",
+      "Bash(ufw status:*)",
+      "Bash(hostname:*)",
+      "Bash(nslookup:*)",
+      "Bash(dig:*)",
+      "Bash(./test-connection.sh:*)",
+      "Bash(ip route:*)",
+      "Bash(cat:*)",
+      "Bash(./wsl-network-fix.sh:*)"
+    ],
+    "deny": []
+  }
+}

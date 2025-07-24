@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.transportationserver.repository.SubwayStationMapper">
+
+    <resultMap id="SubwayStationResultMap" type="SubwayStation">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="lineNumber" column="line_number"/>
+        <result property="stationCode" column="station_code"/>
+        <result property="latitude" column="latitude"/>
+        <result property="longitude" column="longitude"/>
+        <result property="address" column="address"/>
+        <result property="externalId" column="external_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations
+        ORDER BY name
+    </select>
+
+    <select id="findById" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations 
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByName" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations 
+        WHERE name LIKE CONCAT('%', #{name}, '%')
+        ORDER BY name
+    </select>
+
+    <select id="findByLineNumber" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations 
+        WHERE line_number = #{lineNumber}
+        ORDER BY name
+    </select>
+
+    <select id="findByStationCode" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations 
+        WHERE station_code = #{stationCode}
+    </select>
+
+    <select id="findNearbyStations" resultMap="SubwayStationResultMap">
+        SELECT *, 
+               (6371 * acos(cos(radians(#{latitude})) * cos(radians(latitude)) * 
+                cos(radians(longitude) - radians(#{longitude})) + 
+                sin(radians(#{latitude})) * sin(radians(latitude)))) AS distance
+        FROM subway_stations
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        HAVING distance <![CDATA[<=]]> #{radius}
+        ORDER BY distance
+    </select>
+
+    <select id="existsByStationCode" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM subway_stations 
+        WHERE station_code = #{stationCode}
+    </select>
+
+    <select id="findByExternalId" resultMap="SubwayStationResultMap">
+        SELECT * FROM subway_stations 
+        WHERE external_id = #{externalId}
+    </select>
+
+    <insert id="insert" parameterType="SubwayStation" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO subway_stations (
+            name, line_number, station_code, latitude, longitude, 
+            address, external_id, created_at, updated_at
+        ) VALUES (
+            #{name}, #{lineNumber}, #{stationCode}, #{latitude}, #{longitude},
+            #{address}, #{externalId}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="update" parameterType="SubwayStation">
+        UPDATE subway_stations SET
+            name = #{name},
+            line_number = #{lineNumber},
+            station_code = #{stationCode},
+            latitude = #{latitude},
+            longitude = #{longitude},
+            address = #{address},
+            external_id = #{externalId},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM subway_stations WHERE id = #{id}
+    </delete>
+
+</mapper>
