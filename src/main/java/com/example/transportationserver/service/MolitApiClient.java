@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,7 +23,7 @@ public class MolitApiClient {
     
     private final WebClient webClient;
     
-    @Value("${api.molit.service-key:}")
+    @Value("${api.molit.service.key:}")
     private String serviceKey;
     
     public MolitApiClient() {
@@ -40,33 +42,44 @@ public class MolitApiClient {
             return Mono.just(new ArrayList<MolitStationInfo>());
         }
         
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
-                        .queryParam("serviceKey", serviceKey)
-                        .queryParam("pageNo", 1)
-                        .queryParam("numOfRows", 100)
-                        .queryParam("_type", "json")
-                        .queryParam("subwayStationName", stationName)
-                        .build())
-                .retrieve()
-                .bodyToMono(MolitApiResponse.class)
-                .map(response -> {
-                    if (response != null && response.response != null && 
-                        response.response.body != null && response.response.body.items != null) {
-                        return response.response.body.items;
-                    }
-                    return new ArrayList<MolitStationInfo>();
-                })
-                .doOnSuccess(result -> {
-                    if (result.isEmpty()) {
-                        logger.debug("No MOLIT data found for station: {}", stationName);
-                    } else {
-                        logger.info("Found {} MOLIT records for station: {}", result.size(), stationName);
-                    }
-                })
-                .doOnError(error -> logger.error("Error fetching MOLIT data for {}: {}", stationName, error.getMessage()))
-                .onErrorReturn(new ArrayList<MolitStationInfo>());
+        try {
+            String encodedStationName = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
+            logger.info("Calling MOLIT API for station: {} (encoded: {})", stationName, encodedStationName);
+            logger.debug("Using service key: {}...{}", 
+                serviceKey.substring(0, Math.min(10, serviceKey.length())), 
+                serviceKey.length() > 10 ? serviceKey.substring(serviceKey.length() - 10) : "");
+            
+            return webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
+                            .queryParam("serviceKey", serviceKey)
+                            .queryParam("pageNo", 1)
+                            .queryParam("numOfRows", 100)
+                            .queryParam("_type", "json")
+                            .queryParam("subwayStationName", encodedStationName)
+                            .build())
+                    .retrieve()
+                    .bodyToMono(MolitApiResponse.class)
+                    .map(response -> {
+                        if (response != null && response.response != null && 
+                            response.response.body != null && response.response.body.items != null) {
+                            return response.response.body.items;
+                        }
+                        return new ArrayList<MolitStationInfo>();
+                    })
+                    .doOnSuccess(result -> {
+                        if (result.isEmpty()) {
+                            logger.debug("No MOLIT data found for station: {}", stationName);
+                        } else {
+                            logger.info("Found {} MOLIT records for station: {}", result.size(), stationName);
+                        }
+                    })
+                    .doOnError(error -> logger.error("Error fetching MOLIT data for {}: {}", stationName, error.getMessage()))
+                    .onErrorReturn(new ArrayList<MolitStationInfo>());
+        } catch (Exception e) {
+            logger.error("Error encoding station name: {}", stationName, e);
+            return Mono.just(new ArrayList<MolitStationInfo>());
+        }
     }
     
     /**

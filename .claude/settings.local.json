@@ -38,7 +38,13 @@
       "Bash(./sync-data.sh:*)",
       "Bash(find:*)",
       "Bash(lsof:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:www.data.go.kr)",
+      "Bash(file:*)",
+      "Bash(unzip:*)",
+      "Bash(cd:*)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }

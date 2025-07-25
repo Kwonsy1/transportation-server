@@ -3,26 +3,42 @@ package com.example.transportationserver.controller;
 import com.example.transportationserver.dto.StandardApiResponse;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.service.SubwayStationService;
+import com.example.transportationserver.service.MolitApiClient;
+import com.example.transportationserver.service.MolitApiClient.MolitStationInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/subway/stations")
 @Tag(name = "지하철역 관리", description = "지하철역 정보 CRUD 및 검색 기능을 제공합니다")
 public class SubwayStationController {
     
+    private static final Logger logger = LoggerFactory.getLogger(SubwayStationController.class);
+    
     @Autowired
     private SubwayStationService subwayStationService;
+    
+    @Autowired
+    private MolitApiClient molitApiClient;
+    
+    @Value("${api.molit.service.key:}")
+    private String serviceKey;
     
     @Operation(summary = "모든 지하철역 조회", description = "등록된 모든 지하철역 목록을 반환합니다")
     @ApiResponses(value = {
