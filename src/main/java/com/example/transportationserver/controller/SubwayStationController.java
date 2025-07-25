@@ -1,5 +1,6 @@
 package com.example.transportationserver.controller;
 
+import com.example.transportationserver.dto.StandardApiResponse;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.service.SubwayStationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,9 +30,9 @@ public class SubwayStationController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping
-    public ResponseEntity<List<SubwayStation>> getAllStations() {
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> getAllStations() {
         List<SubwayStation> stations = subwayStationService.getAllStations();
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, "지하철역 목록 조회 성공", stations.size()));
     }
     
     @Operation(summary = "지하철역 상세 조회", description = "ID로 특정 지하철역의 상세 정보를 조회합니다")
@@ -41,50 +42,50 @@ public class SubwayStationController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<SubwayStation> getStationById(
+    public ResponseEntity<StandardApiResponse<SubwayStation>> getStationById(
             @Parameter(description = "지하철역 ID", required = true, example = "1")
             @PathVariable Long id) {
         SubwayStation station = subwayStationService.getStationById(id);
-        return ResponseEntity.ok(station);
+        return ResponseEntity.ok(StandardApiResponse.success(station, "지하철역 상세 조회 성공"));
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<SubwayStation>> searchStations(@RequestParam String name) {
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> searchStations(@RequestParam String name) {
         List<SubwayStation> stations = subwayStationService.searchStationsByName(name);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, "지하철역 검색 결과", stations.size()));
     }
     
     @GetMapping("/line/{lineNumber}")
-    public ResponseEntity<List<SubwayStation>> getStationsByLine(@PathVariable String lineNumber) {
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> getStationsByLine(@PathVariable String lineNumber) {
         List<SubwayStation> stations = subwayStationService.getStationsByLine(lineNumber);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, lineNumber + "호선 지하철역 목록 조회 성공", stations.size()));
     }
     
     @GetMapping("/nearby")
-    public ResponseEntity<List<SubwayStation>> getNearbyStations(
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> getNearbyStations(
             @RequestParam Double lat,
             @RequestParam Double lng,
             @RequestParam(defaultValue = "2.0") Double radius) {
         List<SubwayStation> stations = subwayStationService.getNearbyStations(lat, lng, radius);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, "주변 지하철역 조회 성공", stations.size()));
     }
     
     @PostMapping
-    public ResponseEntity<SubwayStation> createStation(@Valid @RequestBody SubwayStation station) {
+    public ResponseEntity<StandardApiResponse<SubwayStation>> createStation(@Valid @RequestBody SubwayStation station) {
         SubwayStation createdStation = subwayStationService.createStation(station);
-        return new ResponseEntity<>(createdStation, HttpStatus.CREATED);
+        return new ResponseEntity<>(StandardApiResponse.success(createdStation, "지하철역 생성 성공", HttpStatus.CREATED.value()), HttpStatus.CREATED);
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<SubwayStation> updateStation(@PathVariable Long id, 
+    public ResponseEntity<StandardApiResponse<SubwayStation>> updateStation(@PathVariable Long id, 
                                                       @Valid @RequestBody SubwayStation station) {
         SubwayStation updatedStation = subwayStationService.updateStation(id, station);
-        return ResponseEntity.ok(updatedStation);
+        return ResponseEntity.ok(StandardApiResponse.success(updatedStation, "지하철역 정보 수정 성공"));
     }
     
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteStation(@PathVariable Long id) {
+    public ResponseEntity<StandardApiResponse<Void>> deleteStation(@PathVariable Long id) {
         subwayStationService.deleteStation(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(StandardApiResponse.success(null, "지하철역 삭제 성공"));
     }
 }

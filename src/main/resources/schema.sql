@@ -4,12 +4,18 @@
 CREATE TABLE IF NOT EXISTS subway_stations (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    line_number VARCHAR(20) NOT NULL,
-    station_code VARCHAR(20) UNIQUE,
+    line_number VARCHAR(20),
+    station_code VARCHAR(20),
     latitude DECIMAL(10, 7),
     longitude DECIMAL(10, 7),
     address VARCHAR(255),
     external_id VARCHAR(50),
+    region VARCHAR(50),          -- 지역 (서울특별시, 경기도, 대전광역시 등)
+    city VARCHAR(50),            -- 시/구 (중구, 강남구 등)
+    full_name VARCHAR(150),      -- 전체 이름 (시청역(서울), 시청역(대전))
+    aliases VARCHAR(200),        -- 별칭들 (쉼표로 구분)
+    data_source VARCHAR(20),     -- 데이터 출처 (SEOUL_API, MOLIT_API, OSM)
+    has_coordinates BOOLEAN DEFAULT FALSE, -- 좌표 유무
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -82,6 +88,10 @@ CREATE INDEX IF NOT EXISTS idx_subway_stations_name ON subway_stations(name);
 CREATE INDEX IF NOT EXISTS idx_subway_stations_line ON subway_stations(line_number);
 CREATE INDEX IF NOT EXISTS idx_subway_stations_code ON subway_stations(station_code);
 CREATE INDEX IF NOT EXISTS idx_subway_stations_location ON subway_stations(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_subway_stations_region ON subway_stations(region);
+CREATE INDEX IF NOT EXISTS idx_subway_stations_full_name ON subway_stations(full_name);
+CREATE INDEX IF NOT EXISTS idx_subway_stations_data_source ON subway_stations(data_source);
+CREATE INDEX IF NOT EXISTS idx_subway_stations_has_coordinates ON subway_stations(has_coordinates);
 CREATE INDEX IF NOT EXISTS idx_subway_schedules_station ON subway_schedules(station_id);
 CREATE INDEX IF NOT EXISTS idx_subway_exits_station ON subway_exits(station_id);
 CREATE INDEX IF NOT EXISTS idx_bus_routes_exit ON bus_routes(exit_id);

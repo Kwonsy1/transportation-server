@@ -12,6 +12,12 @@
         <result property="longitude" column="longitude"/>
         <result property="address" column="address"/>
         <result property="externalId" column="external_id"/>
+        <result property="region" column="region"/>
+        <result property="city" column="city"/>
+        <result property="fullName" column="full_name"/>
+        <result property="aliases" column="aliases"/>
+        <result property="dataSource" column="data_source"/>
+        <result property="hasCoordinates" column="has_coordinates"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
@@ -67,10 +73,12 @@
     <insert id="insert" parameterType="SubwayStation" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO subway_stations (
             name, line_number, station_code, latitude, longitude, 
-            address, external_id, created_at, updated_at
+            address, external_id, region, city, full_name, aliases, 
+            data_source, has_coordinates, created_at, updated_at
         ) VALUES (
             #{name}, #{lineNumber}, #{stationCode}, #{latitude}, #{longitude},
-            #{address}, #{externalId}, #{createdAt}, #{updatedAt}
+            #{address}, #{externalId}, #{region}, #{city}, #{fullName}, #{aliases},
+            #{dataSource}, #{hasCoordinates}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -83,6 +91,12 @@
             longitude = #{longitude},
             address = #{address},
             external_id = #{externalId},
+            region = #{region},
+            city = #{city},
+            full_name = #{fullName},
+            aliases = #{aliases},
+            data_source = #{dataSource},
+            has_coordinates = #{hasCoordinates},
             updated_at = #{updatedAt}
         WHERE id = #{id}
     </update>

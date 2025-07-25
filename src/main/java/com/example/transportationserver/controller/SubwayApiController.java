@@ -1,6 +1,7 @@
 package com.example.transportationserver.controller;
 
 import com.example.transportationserver.dto.NextTrainDto;
+import com.example.transportationserver.dto.StandardApiResponse;
 import com.example.transportationserver.dto.SubwayScheduleApiDto;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.service.KoreanSubwayApiClient;
@@ -40,11 +41,11 @@ public class SubwayApiController {
         @ApiResponse(responseCode = "400", description = "잘못된 요청 파라미터")
     })
     @GetMapping("/search")
-    public ResponseEntity<List<SubwayStation>> searchStations(
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> searchStations(
             @Parameter(description = "검색할 역 이름", required = true, example = "강남")
             @RequestParam String name) {
         List<SubwayStation> stations = stationService.searchStationsByName(name);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, "지하철역 검색 결과", stations.size()));
     }
     
     @Operation(summary = "주변 지하철역 검색", description = "현재 위치 기준으로 지정된 반경 내 지하철역을 검색합니다")
@@ -53,7 +54,7 @@ public class SubwayApiController {
         @ApiResponse(responseCode = "400", description = "잘못된 좌표 정보")
     })
     @GetMapping("/nearby")
-    public ResponseEntity<List<SubwayStation>> getNearbyStations(
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> getNearbyStations(
             @Parameter(description = "위도", required = true, example = "37.5665")
             @RequestParam Double lat,
             @Parameter(description = "경도", required = true, example = "126.9780")
@@ -61,7 +62,7 @@ public class SubwayApiController {
             @Parameter(description = "검색 반경 (km)", example = "1.0")
             @RequestParam(defaultValue = "1.0") Double radius) {
         List<SubwayStation> stations = stationService.getNearbyStations(lat, lng, radius);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, "주변 지하철역 조회 성공", stations.size()));
     }
     
     @Operation(summary = "실시간 지하철 도착정보", description = "지정된 역의 실시간 지하철 도착 정보를 조회합니다")
@@ -106,9 +107,9 @@ public class SubwayApiController {
      * Flutter 앱용 - 노선별 역 목록
      */
     @GetMapping("/lines/{lineNumber}/stations")
-    public ResponseEntity<List<SubwayStation>> getStationsByLine(@PathVariable String lineNumber) {
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> getStationsByLine(@PathVariable String lineNumber) {
         List<SubwayStation> stations = stationService.getStationsByLine(lineNumber);
-        return ResponseEntity.ok(stations);
+        return ResponseEntity.ok(StandardApiResponse.successWithCount(stations, lineNumber + "호선 지하철역 목록 조회 성공", stations.size()));
     }
     
     /**

@@ -1,6 +1,9 @@
 package com.example.transportationserver.service;
 
 import com.example.transportationserver.dto.*;
+import com.example.transportationserver.dto.SeoulApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -12,9 +15,10 @@ import java.util.List;
 @Service
 public class KoreanSubwayApiClient {
     
+    private static final Logger logger = LoggerFactory.getLogger(KoreanSubwayApiClient.class);
     private final WebClient webClient;
     
-    @Value("${api.korea.subway.base-url}")
+    @Value("${api.korea.subway.base.url}")
     private String baseUrl;
     
     @Value("${api.korea.subway.key}")
@@ -36,15 +40,15 @@ public class KoreanSubwayApiClient {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<ApiResponse<SubwayStationApiDto>>() {})
-                .map(response -> {
-                    if (response.getResponse() != null && 
-                        response.getResponse().getBody() != null &&
-                        response.getResponse().getBody().getItems() != null) {
-                        return response.getResponse().getBody().getItems().getItem();
+                .bodyToMono(SeoulApiResponse.class)
+                .<List<SubwayStationApiDto>>map(response -> {
+                    if (response.getSearchInfoBySubwayNameService() != null && 
+                        response.getSearchInfoBySubwayNameService().getRow() != null) {
+                        return response.getSearchInfoBySubwayNameService().getRow();
                     }
                     return List.of();
-                });
+                })
+                .onErrorReturn(List.of());
     }
     
     /**
@@ -57,15 +61,15 @@ public class KoreanSubwayApiClient {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<ApiResponse<SubwayStationApiDto>>() {})
-                .map(response -> {
-                    if (response.getResponse() != null && 
-                        response.getResponse().getBody() != null &&
-                        response.getResponse().getBody().getItems() != null) {
-                        return response.getResponse().getBody().getItems().getItem();
+                .bodyToMono(SeoulApiResponse.class)
+                .<List<SubwayStationApiDto>>map(response -> {
+                    if (response.getSearchInfoBySubwayNameService() != null && 
+                        response.getSearchInfoBySubwayNameService().getRow() != null) {
+                        return response.getSearchInfoBySubwayNameService().getRow();
                     }
                     return List.of();
-                });
+                })
+                .onErrorReturn(List.of());
     }
     
     /**

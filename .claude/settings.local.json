@@ -26,7 +26,19 @@
       "Bash(./test-connection.sh:*)",
       "Bash(ip route:*)",
       "Bash(cat:*)",
-      "Bash(./wsl-network-fix.sh:*)"
+      "Bash(./wsl-network-fix.sh:*)",
+      "Bash(./restart.sh)",
+      "Bash(./start.sh:*)",
+      "Bash(grep:*)",
+      "Bash(echo:*)",
+      "Bash(/dev/null)",
+      "Bash(java:*)",
+      "Bash(sudo service:*)",
+      "Bash(pg_isready:*)",
+      "Bash(./sync-data.sh:*)",
+      "Bash(find:*)",
+      "Bash(lsof:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

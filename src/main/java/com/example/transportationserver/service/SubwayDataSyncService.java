@@ -198,6 +198,61 @@ public class SubwayDataSyncService {
      */
     public void triggerFullSync() {
         logger.info("Manual full data synchronization triggered");
-        syncStationData();
+        syncStationDataSync();
+    }
+    
+    /**
+     * 동기 버전의 지하철역 데이터 동기화 (테스트용)
+     */
+    public void syncStationDataSync() {
+        logger.info("Starting subway station data synchronization (sync)...");
+        
+        try {
+            // 전체 데이터 동기화
+            int pageSize = 100;
+            int currentPage = 1;
+            boolean hasMore = true;
+            int totalSynced = 0;
+            
+            while (hasMore) {
+                int startIndex = (currentPage - 1) * pageSize + 1;
+                int endIndex = currentPage * pageSize;
+                
+                logger.info("Fetching stations from API: {} to {}", startIndex, endIndex);
+                List<SubwayStationApiDto> apiStations = apiClient.getAllStations(startIndex, endIndex)
+                        .block();
+                
+                if (apiStations == null || apiStations.isEmpty()) {
+                    logger.info("No more station data at page {}", currentPage);
+                    hasMore = false;
+                    break;
+                }
+                
+                logger.info("Received {} stations from API (page {})", apiStations.size(), currentPage);
+                
+                // API 데이터를 DB 모델로 변환 및 저장
+                for (SubwayStationApiDto apiStation : apiStations) {
+                    try {
+                        syncStation(apiStation);
+                        totalSynced++;
+                        if (totalSynced % 50 == 0) {
+                            logger.info("Progress: {} stations synced", totalSynced);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to sync station: {}, error: {}", apiStation.getStationName(), e.getMessage(), e);
+                    }
+                }
+                
+                currentPage++;
+                
+                // API 호출 제한을 고려한 딜레이
+                Thread.sleep(100);
+            }
+            
+            logger.info("Subway station data synchronization completed. Total synced: {}", totalSynced);
+            
+        } catch (Exception e) {
+            logger.error("Failed to synchronize subway station data", e);
+        }
     }
 }

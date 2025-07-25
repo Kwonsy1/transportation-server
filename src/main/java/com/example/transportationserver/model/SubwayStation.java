@@ -13,6 +13,12 @@ public class SubwayStation {
     private Double longitude;
     private String address;
     private String externalId;
+    private String region;        // 지역 (서울특별시, 경기도, 대전광역시 등)
+    private String city;          // 시/구 (중구, 강남구 등)
+    private String fullName;      // 전체 이름 (시청역(서울), 시청역(대전))
+    private String aliases;       // 별칭들 (쉼표로 구분)
+    private String dataSource;    // 데이터 출처 (SEOUL_API, MOLIT_API 등)
+    private Boolean hasCoordinates; // 좌표 유무
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
@@ -30,6 +36,7 @@ public class SubwayStation {
         this.latitude = latitude;
         this.longitude = longitude;
         this.address = address;
+        this.hasCoordinates = (latitude != null && longitude != null);
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -70,4 +77,22 @@ public class SubwayStation {
     
     public List<SubwayExit> getExits() { return exits; }
     public void setExits(List<SubwayExit> exits) { this.exits = exits; }
+    
+    public String getRegion() { return region; }
+    public void setRegion(String region) { this.region = region; }
+    
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    
+    public String getAliases() { return aliases; }
+    public void setAliases(String aliases) { this.aliases = aliases; }
+    
+    public String getDataSource() { return dataSource; }
+    public void setDataSource(String dataSource) { this.dataSource = dataSource; }
+    
+    public Boolean getHasCoordinates() { return hasCoordinates; }
+    public void setHasCoordinates(Boolean hasCoordinates) { this.hasCoordinates = hasCoordinates; }
 }
