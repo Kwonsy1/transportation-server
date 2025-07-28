@@ -7,6 +7,8 @@ import com.example.transportationserver.service.MolitApiClient;
 import com.example.transportationserver.service.MolitApiClient.MolitStationInfo;
 import com.example.transportationserver.service.SubwayStationService;
 import com.example.transportationserver.service.OpenStreetMapService;
+import com.example.transportationserver.service.BatchCoordinateService;
+import com.example.transportationserver.service.StreamingStationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,6 +46,12 @@ public class SubwayController {
     
     @Autowired
     private OpenStreetMapService openStreetMapService;
+    
+    @Autowired
+    private BatchCoordinateService batchCoordinateService;
+    
+    @Autowired
+    private StreamingStationService streamingStationService;
 
     // === 데이터 동기화 === //
     
@@ -509,6 +517,134 @@ public class SubwayController {
             error.put("timestamp", java.time.LocalDateTime.now().toString());
             
             logger.error("좌표 진행 상황 조회 실패: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
+    
+    // === 메모리 효율적인 스트리밍 API === //
+    
+    @PostMapping("/coordinates/supplement-streaming")
+    @Operation(
+        summary = "스트리밍 방식 좌표 보완",
+        description = "메모리 효율적인 스트리밍 방식으로 좌표 보완 작업 수행",
+        tags = {"5. 최적화된 API"}
+    )
+    public ResponseEntity<StandardApiResponse<String>> supplementCoordinatesStreaming() {
+        try {
+            batchCoordinateService.supplementCoordinatesStreaming();
+            
+            return ResponseEntity.ok(StandardApiResponse.success(
+                "STARTED", 
+                "스트리밍 방식 좌표 보완 작업이 시작되었습니다. /api/subway/coordinates/progress 에서 진행 상황을 확인하세요."
+            ));
+        } catch (Exception e) {
+            logger.error("스트리밍 좌표 보완 시작 실패", e);
+            return ResponseEntity.internalServerError()
+                .body(StandardApiResponse.error("스트리밍 좌표 보완 시작 실패: " + e.getMessage(), 500));
+        }
+    }
+    
+    @GetMapping("/memory/status")
+    @Operation(
+        summary = "메모리 사용량 확인",
+        description = "현재 JVM 메모리 사용량 및 상태 확인",
+        tags = {"5. 최적화된 API"}
+    )
+    public ResponseEntity<Map<String, Object>> getMemoryStatus() {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            Map<String, Object> memoryInfo = new HashMap<>();
+            
+            long maxMemory = runtime.maxMemory();
+            long totalMemory = runtime.totalMemory();
+            long freeMemory = runtime.freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            
+            memoryInfo.put("maxMemoryMB", maxMemory / 1024 / 1024);
+            memoryInfo.put("totalMemoryMB", totalMemory / 1024 / 1024);
+            memoryInfo.put("usedMemoryMB", usedMemory / 1024 / 1024);
+            memoryInfo.put("freeMemoryMB", freeMemory / 1024 / 1024);
+            memoryInfo.put("usagePercentage", Math.round(((double) usedMemory / maxMemory) * 100 * 100.0) / 100.0);
+            
+            // 메모리 사용량에 따른 상태 판단
+            double usagePercentage = ((double) usedMemory / maxMemory) * 100;
+            String status;
+            if (usagePercentage < 50) {
+                status = "GOOD";
+            } else if (usagePercentage < 80) {
+                status = "WARNING";
+            } else {
+                status = "CRITICAL";
+            }
+            memoryInfo.put("status", status);
+            
+            // GC 실행 가능성 제안
+            if (usagePercentage > 70) {
+                memoryInfo.put("recommendation", "높은 메모리 사용량으로 인해 GC 실행을 권장합니다.");
+            }
+            
+            return ResponseEntity.ok(memoryInfo);
+        } catch (Exception e) {
+            logger.error("메모리 상태 확인 실패", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
+    
+    @PostMapping("/memory/gc")
+    @Operation(
+        summary = "가비지 컬렉션 실행",
+        description = "System.gc()를 호출하여 메모리 정리 시도 (권장사항일 뿐, 강제 실행은 아님)",
+        tags = {"5. 최적화된 API"}
+    )
+    public ResponseEntity<StandardApiResponse<String>> triggerGarbageCollection() {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            long beforeGC = runtime.totalMemory() - runtime.freeMemory();
+            
+            System.gc();
+            
+            // GC 후 잠깐 대기
+            Thread.sleep(100);
+            
+            long afterGC = runtime.totalMemory() - runtime.freeMemory();
+            long freed = beforeGC - afterGC;
+            
+            String message = String.format("GC 실행 완료. 해제된 메모리: %.2f MB", 
+                freed / 1024.0 / 1024.0);
+            
+            return ResponseEntity.ok(StandardApiResponse.success("COMPLETED", message));
+        } catch (Exception e) {
+            logger.error("GC 실행 실패", e);
+            return ResponseEntity.internalServerError()
+                .body(StandardApiResponse.error("GC 실행 실패: " + e.getMessage(), 500));
+        }
+    }
+    
+    @GetMapping("/performance/batch-progress")
+    @Operation(
+        summary = "배치 처리 진행 상황",
+        description = "현재 실행 중인 배치 작업의 진행 상황 확인",
+        tags = {"5. 최적화된 API"}
+    )
+    public ResponseEntity<Map<String, Object>> getBatchProgress() {
+        try {
+            BatchCoordinateService.CoordinateProgress progress = batchCoordinateService.getProgress();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("total", progress.total);
+            response.put("current", progress.current);
+            response.put("success", progress.success);
+            response.put("failure", progress.failure);
+            response.put("progressPercentage", progress.progressPercentage);
+            response.put("timestamp", java.time.LocalDateTime.now().toString());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("배치 진행 상황 조회 실패", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
             return ResponseEntity.internalServerError().body(error);
         }
     }

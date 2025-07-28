@@ -1,11 +1,15 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.util.ReactiveRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +44,9 @@ public class IntegratedSubwayDataService {
     
     @Autowired
     private SubwayStationService stationService;
+    
+    @Autowired
+    private ReactiveRateLimiter rateLimiter;
     
     @Value("${api.korea.subway.key}")
     private String apiKey;
@@ -80,9 +87,9 @@ public class IntegratedSubwayDataService {
             result.setSeoulStationsFound(seoulStationNames.size());
             logger.info("서울시 API: {} 개 역명 수집", seoulStationNames.size());
             
-            // 2단계: 국토교통부 API로 상세정보 수집
+            // 2단계: 국토교통부 API로 상세정보 수집 (비동기)
             logger.info("2단계: 국토교통부 API 상세정보 수집");
-            Map<String, List<MolitApiClient.MolitStationInfo>> molitData = collectMolitData(seoulStationNames);
+            Map<String, List<MolitApiClient.MolitStationInfo>> molitData = collectMolitDataAsync(seoulStationNames).get();
             result.setMolitStationsFound(molitData.values().stream().mapToInt(List::size).sum());
             logger.info("국토교통부 API: {} 개 역 상세정보 수집", result.getMolitStationsFound());
             
@@ -94,7 +101,7 @@ public class IntegratedSubwayDataService {
             
             // 4단계: 좌표 정보 통합 및 보완
             logger.info("4단계: 좌표 정보 통합 및 보완");
-            int coordinatesEnriched = enrichCoordinates(stationGroups);
+            int coordinatesEnriched = enrichCoordinatesAsync(stationGroups).get();
             result.setCoordinatesEnriched(coordinatesEnriched);
             logger.info("좌표 정보 보완: {} 개 그룹", coordinatesEnriched);
             
@@ -124,28 +131,31 @@ public class IntegratedSubwayDataService {
     }
     
     /**
-     * 국토교통부 API에서 상세정보 수집
+     * 국토교통부 API에서 상세정보 수집 (비동기 개선)
      */
-    private Map<String, List<MolitApiClient.MolitStationInfo>> collectMolitData(Set<String> stationNames) {
-        Map<String, List<MolitApiClient.MolitStationInfo>> result = new HashMap<>();
+    private CompletableFuture<Map<String, List<MolitApiClient.MolitStationInfo>>> collectMolitDataAsync(Set<String> stationNames) {
+        logger.info("MOLIT API 데이터 수집 시작: {} 개 역", stationNames.size());
         
-        for (String stationName : stationNames) {
-            try {
-                List<MolitApiClient.MolitStationInfo> stationInfo = molitApiClient.getStationDetails(stationName).block();
-                if (stationInfo != null && !stationInfo.isEmpty()) {
-                    result.put(stationName, stationInfo);
-                    logger.debug("MOLIT 데이터 수집: {} -> {} 개 결과", stationName, stationInfo.size());
-                }
-                
-                // API 호출 제한 고려 (1초 대기)
-                Thread.sleep(1000);
-                
-            } catch (Exception e) {
-                logger.warn("MOLIT API 호출 실패: {}, 오류: {}", stationName, e.getMessage());
-            }
-        }
-        
-        return result;
+        return Flux.fromIterable(stationNames)
+            .flatMap(stationName -> 
+                rateLimiter.executeLimited(
+                    ReactiveRateLimiter.ApiType.MOLIT,
+                    molitApiClient.getStationDetails(stationName)
+                        .doOnSuccess(data -> {
+                            if (data != null && !data.isEmpty()) {
+                                logger.debug("MOLIT 데이터 수집 성공: {} -> {} 개 결과", stationName, data.size());
+                            }
+                        })
+                        .onErrorResume(error -> {
+                            logger.warn("MOLIT API 호출 실패: {}, 오류: {}", stationName, error.getMessage());
+                            return Mono.just(Collections.emptyList());
+                        })
+                        .map(data -> Map.entry(stationName, data))
+                ), 5) // 최대 5개 동시 처리
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+            .doOnSuccess(result -> logger.info("MOLIT 데이터 수집 완료: {} 개 역", result.size()))
+            .toFuture();
     }
     
     /**
@@ -188,49 +198,55 @@ public class IntegratedSubwayDataService {
     }
     
     /**
-     * 좌표 정보 보완
+     * 좌표 정보 보완 (비동기 개선)
      */
-    private int enrichCoordinates(List<StationGroup> stationGroups) {
-        int enrichedCount = 0;
+    private CompletableFuture<Integer> enrichCoordinatesAsync(List<StationGroup> stationGroups) {
+        logger.info("좌표 정보 보완 시작: {} 개 그룹", stationGroups.size());
         
-        for (StationGroup group : stationGroups) {
-            // 기존 좌표들로 대표 좌표 결정
-            List<CoordinateIntegrationService.StationCoordinate> coordinates = 
-                group.getStations().stream()
-                    .filter(station -> station.getLatitude() != null && station.getLongitude() != null)
-                    .map(station -> new CoordinateIntegrationService.StationCoordinate(
-                        station.getLatitude(), station.getLongitude(), 
-                        station.getDataSource(), station.getStationId()))
-                    .collect(Collectors.toList());
-            
-            CoordinateIntegrationService.CoordinateResult result = 
-                coordinateService.determineGroupCoordinate(coordinates);
-            
-            if (result.isValid()) {
-                group.setRepresentativeCoordinate(result.getLatitude(), result.getLongitude(), result.getConfidence());
-                enrichedCount++;
-            } else {
-                // OSM으로 좌표 보완 시도
-                try {
-                    CoordinateIntegrationService.CoordinateResult osmResult = 
+        return Flux.fromIterable(stationGroups)
+            .flatMap(group -> {
+                // 기존 좌표들로 대표 좌표 결정
+                List<CoordinateIntegrationService.StationCoordinate> coordinates = 
+                    group.getStations().stream()
+                        .filter(station -> station.getLatitude() != null && station.getLongitude() != null)
+                        .map(station -> new CoordinateIntegrationService.StationCoordinate(
+                            station.getLatitude(), station.getLongitude(), 
+                            station.getDataSource(), station.getStationId()))
+                        .collect(Collectors.toList());
+                
+                CoordinateIntegrationService.CoordinateResult result = 
+                    coordinateService.determineGroupCoordinate(coordinates);
+                
+                if (result.isValid()) {
+                    group.setRepresentativeCoordinate(result.getLatitude(), result.getLongitude(), result.getConfidence());
+                    return Mono.just(1);
+                } else {
+                    // OSM으로 좌표 보완 시도 (비동기)
+                    return rateLimiter.executeLimited(
+                        ReactiveRateLimiter.ApiType.OPENSTREETMAP,
                         coordinateService.supplementCoordinate(
                             group.getStandardizedStation().getOriginalName(),
                             group.getStandardizedStation().getRegion(),
                             group.getStandardizedStation().getCity()
-                        ).block();
-                    
-                    if (osmResult != null && osmResult.isValid()) {
-                        group.setRepresentativeCoordinate(
-                            osmResult.getLatitude(), osmResult.getLongitude(), osmResult.getConfidence());
-                        enrichedCount++;
-                    }
-                } catch (Exception e) {
-                    logger.warn("OSM 좌표 보완 실패: {}", group.getStandardizedStation().getCanonicalName());
+                        )
+                    )
+                    .map(osmResult -> {
+                        if (osmResult != null && osmResult.isValid()) {
+                            group.setRepresentativeCoordinate(
+                                osmResult.getLatitude(), osmResult.getLongitude(), osmResult.getConfidence());
+                            return 1;
+                        }
+                        return 0;
+                    })
+                    .onErrorResume(error -> {
+                        logger.warn("OSM 좌표 보완 실패: {}", group.getStandardizedStation().getCanonicalName());
+                        return Mono.just(0);
+                    });
                 }
-            }
-        }
-        
-        return enrichedCount;
+            }, 3) // 최대 3개 동시 처리 (OpenStreetMap API 제한 고려)
+            .reduce(0, Integer::sum)
+            .doOnSuccess(count -> logger.info("좌표 정보 보완 완료: {} 개 그룹", count))
+            .toFuture();
     }
     
     /**

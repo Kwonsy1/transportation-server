@@ -11,6 +11,12 @@ public interface SubwayStationMapper {
     @Select("SELECT * FROM subway_stations ORDER BY name")
     List<SubwayStation> findAll();
     
+    @Select("SELECT * FROM subway_stations ORDER BY name LIMIT #{limit} OFFSET #{offset}")
+    List<SubwayStation> findWithPaging(@Param("offset") int offset, @Param("limit") int limit);
+    
+    @Select("SELECT COUNT(*) FROM subway_stations")
+    int countAll();
+    
     @Select("SELECT * FROM subway_stations WHERE id = #{id}")
     SubwayStation findById(@Param("id") Long id);
     
@@ -46,6 +52,12 @@ public interface SubwayStationMapper {
     
     @Select("SELECT * FROM subway_stations WHERE (latitude IS NULL OR longitude IS NULL OR latitude = 0 OR longitude = 0) ORDER BY name, line_number")
     List<SubwayStation> findStationsWithoutCoordinates();
+    
+    @Select("SELECT * FROM subway_stations WHERE (latitude IS NULL OR longitude IS NULL OR latitude = 0 OR longitude = 0) ORDER BY name, line_number LIMIT #{limit} OFFSET #{offset}")
+    List<SubwayStation> findStationsWithoutCoordinatesWithPaging(@Param("offset") int offset, @Param("limit") int limit);
+    
+    @Select("SELECT COUNT(*) FROM subway_stations WHERE (latitude IS NULL OR longitude IS NULL OR latitude = 0 OR longitude = 0)")
+    int countStationsWithoutCoordinates();
     
     @Update("UPDATE subway_stations SET latitude = #{latitude}, longitude = #{longitude}, has_coordinates = CASE WHEN #{latitude} IS NOT NULL AND #{longitude} IS NOT NULL THEN true ELSE false END, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}")
     int updateCoordinates(@Param("id") Long id, 
