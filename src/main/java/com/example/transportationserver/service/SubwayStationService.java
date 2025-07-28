@@ -83,4 +83,56 @@ public class SubwayStationService {
     public SubwayStation findByExternalId(String externalId) {
         return subwayStationMapper.findByExternalId(externalId);
     }
+    
+    /**
+     * 좌표가 없는 역들 조회
+     */
+    public List<SubwayStation> getStationsWithoutCoordinates() {
+        return subwayStationMapper.findStationsWithoutCoordinates();
+    }
+    
+    /**
+     * 특정 역의 좌표 업데이트
+     */
+    public boolean updateStationCoordinates(Long id, Double latitude, Double longitude) {
+        int updated = subwayStationMapper.updateCoordinates(id, latitude, longitude);
+        return updated > 0;
+    }
+    
+    /**
+     * 좌표 통계 정보 반환
+     */
+    public CoordinateStatistics getCoordinateStatistics() {
+        List<SubwayStation> allStations = getAllStations();
+        List<SubwayStation> stationsWithoutCoordinates = getStationsWithoutCoordinates();
+        
+        int total = allStations.size();
+        int missing = stationsWithoutCoordinates.size();
+        int hasCoordinates = total - missing;
+        
+        return new CoordinateStatistics(total, hasCoordinates, missing);
+    }
+    
+    /**
+     * 좌표 통계 클래스
+     */
+    public static class CoordinateStatistics {
+        private final int total;
+        private final int hasCoordinates;
+        private final int missingCoordinates;
+        
+        public CoordinateStatistics(int total, int hasCoordinates, int missingCoordinates) {
+            this.total = total;
+            this.hasCoordinates = hasCoordinates;
+            this.missingCoordinates = missingCoordinates;
+        }
+        
+        public int getTotal() { return total; }
+        public int getHasCoordinates() { return hasCoordinates; }
+        public int getMissingCoordinates() { return missingCoordinates; }
+        
+        public double getCompletionRate() {
+            return total > 0 ? (double) hasCoordinates / total * 100 : 0;
+        }
+    }
 }

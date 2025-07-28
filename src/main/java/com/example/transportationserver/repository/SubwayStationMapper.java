@@ -32,4 +32,10 @@ public interface SubwayStationMapper {
     boolean existsByStationCode(@Param("stationCode") String stationCode);
     
     SubwayStation findByExternalId(@Param("externalId") String externalId);
+    
+    List<SubwayStation> findStationsWithoutCoordinates();
+    
+    int updateCoordinates(@Param("id") Long id, 
+                         @Param("latitude") Double latitude, 
+                         @Param("longitude") Double longitude);
 }

@@ -29,6 +29,9 @@ public class MolitApiClient {
     public MolitApiClient() {
         this.webClient = WebClient.builder()
                 .baseUrl(MOLIT_BASE_URL)
+                .defaultHeader("User-Agent", "Transportation-Server/1.0")
+                .defaultHeader("Accept", "application/json")
+                .defaultHeader("Accept-Charset", "UTF-8")
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(2 * 1024 * 1024))
                 .build();
     }
@@ -42,30 +45,56 @@ public class MolitApiClient {
             return Mono.just(new ArrayList<MolitStationInfo>());
         }
         
-        try {
-            String encodedStationName = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
-            logger.info("Calling MOLIT API for station: {} (encoded: {})", stationName, encodedStationName);
-            logger.debug("Using service key: {}...{}", 
-                serviceKey.substring(0, Math.min(10, serviceKey.length())), 
-                serviceKey.length() > 10 ? serviceKey.substring(serviceKey.length() - 10) : "");
-            
-            return webClient.get()
-                    .uri(uriBuilder -> uriBuilder
+        logger.info("Calling MOLIT API for station: {}", stationName);
+        logger.debug("Using service key: {}...{}", 
+            serviceKey.substring(0, Math.min(10, serviceKey.length())), 
+            serviceKey.length() > 10 ? serviceKey.substring(serviceKey.length() - 10) : "");
+        
+        return webClient.get()
+                .uri(uriBuilder -> {
+                    String finalUri = uriBuilder
                             .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
                             .queryParam("serviceKey", serviceKey)
                             .queryParam("pageNo", 1)
                             .queryParam("numOfRows", 100)
                             .queryParam("_type", "json")
-                            .queryParam("subwayStationName", encodedStationName)
-                            .build())
+                            .queryParam("subwayStationName", stationName)
+                            .build().toString();
+                    logger.info("Final MOLIT API URL: {}", finalUri);
+                    return uriBuilder
+                            .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
+                            .queryParam("serviceKey", serviceKey)
+                            .queryParam("pageNo", 1)
+                            .queryParam("numOfRows", 100)
+                            .queryParam("_type", "json")
+                            .queryParam("subwayStationName", stationName)
+                            .build();
+                })
                     .retrieve()
-                    .bodyToMono(MolitApiResponse.class)
-                    .map(response -> {
-                        if (response != null && response.response != null && 
-                            response.response.body != null && response.response.body.items != null) {
-                            return response.response.body.items;
+                    .bodyToMono(String.class)
+                    .doOnNext(rawResponse -> {
+                        logger.info("Raw MOLIT API response: {}", rawResponse);
+                    })
+                    .flatMap(rawResponse -> {
+                        try {
+                            // Parse manually to see what's happening
+                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                            MolitApiResponse response = mapper.readValue(rawResponse, MolitApiResponse.class);
+                            
+                            logger.info("Parsed response - header: {}, body: {}", 
+                                response != null && response.response != null ? response.response.header : "null",
+                                response != null && response.response != null && response.response.body != null ? "exists" : "null");
+                            
+                            if (response != null && response.response != null && response.response.body != null) {
+                                List<MolitStationInfo> items = response.response.body.getItemsList();
+                                logger.info("Extracted {} items from response", items.size());
+                                return Mono.just(items);
+                            }
+                            return Mono.just(new ArrayList<MolitStationInfo>());
+                        } catch (Exception e) {
+                            logger.error("Error parsing MOLIT response: {}", e.getMessage());
+                            return Mono.just(new ArrayList<MolitStationInfo>());
                         }
-                        return new ArrayList<MolitStationInfo>();
                     })
                     .doOnSuccess(result -> {
                         if (result.isEmpty()) {
@@ -76,10 +105,6 @@ public class MolitApiClient {
                     })
                     .doOnError(error -> logger.error("Error fetching MOLIT data for {}: {}", stationName, error.getMessage()))
                     .onErrorReturn(new ArrayList<MolitStationInfo>());
-        } catch (Exception e) {
-            logger.error("Error encoding station name: {}", stationName, e);
-            return Mono.just(new ArrayList<MolitStationInfo>());
-        }
     }
     
     /**
@@ -102,9 +127,8 @@ public class MolitApiClient {
                 .retrieve()
                 .bodyToMono(MolitApiResponse.class)
                 .map(response -> {
-                    if (response != null && response.response != null && 
-                        response.response.body != null && response.response.body.items != null) {
-                        return response.response.body.items;
+                    if (response != null && response.response != null && response.response.body != null) {
+                        return response.response.body.getItemsList();
                     }
                     return new ArrayList<MolitStationInfo>();
                 })
@@ -153,10 +177,26 @@ public class MolitApiClient {
             
             @JsonIgnoreProperties(ignoreUnknown = true)
             public static class Body {
-                public List<MolitStationInfo> items;
+                @JsonProperty("items")
+                public Object items;  // Can be List<MolitStationInfo> or empty string
                 public int numOfRows;
                 public int pageNo;
                 public int totalCount;
+                
+                @SuppressWarnings("unchecked")
+                public List<MolitStationInfo> getItemsList() {
+                    if (items instanceof List) {
+                        return (List<MolitStationInfo>) items;
+                    } else if (items instanceof java.util.Map) {
+                        // Sometimes items comes as {"item": [...]}
+                        java.util.Map<String, Object> itemsMap = (java.util.Map<String, Object>) items;
+                        Object itemList = itemsMap.get("item");
+                        if (itemList instanceof List) {
+                            return (List<MolitStationInfo>) itemList;
+                        }
+                    }
+                    return new ArrayList<>();
+                }
             }
         }
     }

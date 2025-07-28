@@ -5,6 +5,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
+import io.swagger.v3.oas.models.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,6 +42,20 @@ public class SwaggerConfig {
                         new Server()
                                 .url("https://kkssyy.ipdisk.co.kr:" + serverPort)
                                 .description("External Server (HTTPS)")
+                ))
+                .tags(List.of(
+                        new Tag()
+                                .name("1. 데이터 동기화 (외부 → DB)")
+                                .description("외부 API에서 데이터를 수집하여 데이터베이스에 저장하는 API"),
+                        new Tag()
+                                .name("2. 클라이언트 API (DB → 클라이언트)")
+                                .description("데이터베이스에서 클라이언트로 데이터를 제공하는 API"),
+                        new Tag()
+                                .name("3. 기본 유틸리티")
+                                .description("서버 상태 확인 및 기본 유틸리티 API"),
+                        new Tag()
+                                .name("4. 테스트 및 디버깅")
+                                .description("개발 및 디버깅을 위한 테스트 API")
                 ));
     }
 }

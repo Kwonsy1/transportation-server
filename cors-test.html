@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS 테스트 - Transportation Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 3px; white-space: pre-wrap; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚇 Transportation Server CORS 테스트</h1>
+        
+        <div class="test-section">
+            <h3>기본 API 테스트</h3>
+            <button onclick="testBasicApi()">기본 API 테스트</button>
+            <button onclick="testHealthCheck()">헬스체크 테스트</button>
+            <div id="basic-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>지하철 역 검색 테스트</h3>
+            <button onclick="testStationSearch()">강남역 검색</button>
+            <button onclick="testLineSearch()">2호선 역 목록</button>
+            <div id="station-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>좌표 정보 테스트</h3>
+            <button onclick="testCoordinateStats()">좌표 통계</button>
+            <button onclick="testMissingCoordinates()">좌표 없는 역</button>
+            <div id="coordinate-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>디버깅 테스트</h3>
+            <button onclick="testDbConnection()">DB 연결 테스트</button>
+            <button onclick="testOsmApi()">OSM API 테스트</button>
+            <div id="debug-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:5300/api';
+
+        function displayResult(elementId, data, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.className = `result ${isSuccess ? 'success' : 'error'}`;
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function makeRequest(url, elementId) {
+            try {
+                console.log(`Making request to: ${url}`);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                console.log(`Response status: ${response.status}`);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                displayResult(elementId, {
+                    status: response.status,
+                    success: response.ok,
+                    data: data
+                }, response.ok);
+                
+            } catch (error) {
+                console.error('Request failed:', error);
+                displayResult(elementId, {
+                    error: error.message,
+                    type: error.constructor.name
+                }, false);
+            }
+        }
+
+        // 기본 API 테스트
+        function testBasicApi() {
+            makeRequest(`${BASE_URL}/`, 'basic-result');
+        }
+
+        function testHealthCheck() {
+            makeRequest(`${BASE_URL}/subway/health`, 'basic-result');
+        }
+
+        // 지하철 역 검색 테스트
+        function testStationSearch() {
+            makeRequest(`${BASE_URL}/subway/stations/search?stationName=강남`, 'station-result');
+        }
+
+        function testLineSearch() {
+            makeRequest(`${BASE_URL}/subway/lines/02호선/stations`, 'station-result');
+        }
+
+        // 좌표 정보 테스트
+        function testCoordinateStats() {
+            makeRequest(`${BASE_URL}/subway/coordinates/statistics`, 'coordinate-result');
+        }
+
+        function testMissingCoordinates() {
+            makeRequest(`${BASE_URL}/subway/stations/missing-coordinates`, 'coordinate-result');
+        }
+
+        // 디버깅 테스트
+        function testDbConnection() {
+            makeRequest(`${BASE_URL}/subway/db/test`, 'debug-result');
+        }
+
+        function testOsmApi() {
+            makeRequest(`${BASE_URL}/subway/debug/osm-test?stationName=강남`, 'debug-result');
+        }
+
+        // 페이지 로드 시 기본 정보 표시
+        window.onload = function() {
+            console.log('CORS 테스트 페이지 로드됨');
+            console.log('테스트 대상 서버:', BASE_URL);
+        };
+    </script>
+</body>
+</html>

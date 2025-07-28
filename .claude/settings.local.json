@@ -44,7 +44,17 @@
       "Bash(file:*)",
       "Bash(unzip:*)",
       "Bash(cd:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(./test-osm.sh:*)",
+      "Bash(gradle clean:*)",
+      "Bash(dpkg:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(export:*)",
+      "Bash(/usr/lib/jvm/java-17-openjdk-amd64/bin/javac -version)",
+      "Bash(./test-compile.sh:*)",
+      "Bash(./simple-test.sh)"
     ],
     "deny": []
   }

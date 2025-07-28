@@ -182,7 +182,7 @@ public class EnhancedSubwayDataService {
         SubwayStation station = new SubwayStation();
         station.setName(stationName);
         station.setFullName(stationName);
-        station.setRegion("서울특별시");  // 서울시 API에서 온 데이터이므로
+        station.setRegion("");  // 서울시 API에서 온 데이터이므로
         station.setDataSource("SEOUL_API");
         station.setHasCoordinates(false);
         station.setCreatedAt(LocalDateTime.now());
