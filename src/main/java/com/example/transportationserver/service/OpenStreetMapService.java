@@ -35,26 +35,33 @@ public class OpenStreetMapService {
     }
     
     public Mono<Optional<Coordinate>> searchStationCoordinates(String stationName, String region) {
-        logger.info("OpenStreetMap 좌표 검색 시작: {} (지역: {})", stationName, region);
+        // 입력값 공백 제거 (final 변수로 선언)
+        final String finalStationName = stationName != null ? stationName.trim() : "";
+        final String finalRegion = region != null ? region.trim() : "";
+        
+        logger.info("OpenStreetMap 좌표 검색 시작: {} (지역: {})", finalStationName, finalRegion);
         
         // 1차 검색 시도
-        return performSearch(stationName, region, buildSearchQuery(stationName, region))
+        return performSearch(finalStationName, finalRegion, buildSearchQuery(finalStationName, finalRegion))
             .flatMap(result -> {
                 if (result.isPresent()) {
-                    logger.info("1차 검색 성공: {} -> {}", stationName, result.get());
+                    logger.info("1차 검색 성공: {} -> {}", finalStationName, result.get());
                     return Mono.just(result);
                 } else {
-                    logger.info("1차 검색 실패, 2차 검색 시도: {}", stationName);
-                    // 2차 검색: 역명만 (역 제거)
-                    String simpleQuery = stationName.replace("역", "");
-                    return performSearch(stationName, region, simpleQuery);
+                    logger.info("1차 검색 실패, 2차 검색 시도: {}", finalStationName);
+                    // 2차 검색: 역명만 (끝의 "역"만 제거)
+                    String simpleQuery = finalStationName.trim();
+                    if (simpleQuery.endsWith("역")) {
+                        simpleQuery = simpleQuery.substring(0, simpleQuery.length() - 1);
+                    }
+                    return performSearch(finalStationName, finalRegion, simpleQuery);
                 }
             })
             .doOnSuccess(finalResult -> {
                 if (finalResult.isPresent()) {
-                    logger.info("좌표 검색 성공: {} -> {}", stationName, finalResult.get());
+                    logger.info("좌표 검색 성공: {} -> {}", finalStationName, finalResult.get());
                 } else {
-                    logger.warn("모든 검색 시도 실패: {}", stationName);
+                    logger.warn("모든 검색 시도 실패: {}", finalStationName);
                 }
             });
     }
@@ -117,16 +124,22 @@ public class OpenStreetMapService {
     }
     
     private String buildSearchQuery(String stationName, String region) {
-        // 역명 정규화
-        String cleanStationName = stationName.replace("역", "");
+        // 역명 정규화 (끝의 "역"만 제거)
+        String cleanStationName = stationName.trim();
+        if (cleanStationName.endsWith("역")) {
+            cleanStationName = cleanStationName.substring(0, cleanStationName.length() - 1);
+        }
         
         // 단순한 검색 쿼리: 역명만 사용
-        return cleanStationName + "역";
+        return cleanStationName;
     }
     
     // 대체 검색 쿼리 생성 (fallback)
     private String buildAlternativeQuery(String stationName, String region) {
-        String cleanStationName = stationName.replace("역", "");
+        String cleanStationName = stationName.trim();
+        if (cleanStationName.endsWith("역")) {
+            cleanStationName = cleanStationName.substring(0, cleanStationName.length() - 1);
+        }
         
         // 2차: 지역 정보 추가
         if (region != null && !region.trim().isEmpty() && !region.equals("서울특별시")) {

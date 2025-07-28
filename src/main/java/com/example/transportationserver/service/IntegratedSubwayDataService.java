@@ -41,10 +41,10 @@ public class IntegratedSubwayDataService {
     @Autowired
     private SubwayStationService stationService;
     
-    @Value("${api.korea.subway.key:}")
+    @Value("${api.korea.subway.key}")
     private String apiKey;
     
-    @Value("${api.molit.service.key:}")
+    @Value("${api.molit.service.key}")
     private String molitServiceKey;
     
     // 좌표 보완 작업 진행 상황 추적

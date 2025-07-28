@@ -23,7 +23,7 @@ public class MolitApiClient {
     
     private final WebClient webClient;
     
-    @Value("${api.molit.service.key:}")
+    @Value("${api.molit.service.key}")
     private String serviceKey;
     
     public MolitApiClient() {
@@ -52,16 +52,7 @@ public class MolitApiClient {
         
         return webClient.get()
                 .uri(uriBuilder -> {
-                    String finalUri = uriBuilder
-                            .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
-                            .queryParam("serviceKey", serviceKey)
-                            .queryParam("pageNo", 1)
-                            .queryParam("numOfRows", 100)
-                            .queryParam("_type", "json")
-                            .queryParam("subwayStationName", stationName)
-                            .build().toString();
-                    logger.info("Final MOLIT API URL: {}", finalUri);
-                    return uriBuilder
+                    var finalUri = uriBuilder
                             .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
                             .queryParam("serviceKey", serviceKey)
                             .queryParam("pageNo", 1)
@@ -69,6 +60,8 @@ public class MolitApiClient {
                             .queryParam("_type", "json")
                             .queryParam("subwayStationName", stationName)
                             .build();
+                    logger.info("Final MOLIT API URL: {}", finalUri.toString());
+                    return finalUri;
                 })
                     .retrieve()
                     .bodyToMono(String.class)

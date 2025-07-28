@@ -54,7 +54,11 @@
       "Bash(export:*)",
       "Bash(/usr/lib/jvm/java-17-openjdk-amd64/bin/javac -version)",
       "Bash(./test-compile.sh:*)",
-      "Bash(./simple-test.sh)"
+      "Bash(./simple-test.sh)",
+      "WebFetch(domain:nominatim.openstreetmap.org)",
+      "WebFetch(domain:kkssyy.ipdisk.co.kr)",
+      "Bash(git checkout:*)",
+      "Bash(fuser:*)"
     ],
     "deny": []
   }
