@@ -1,7 +1,9 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.dto.NearbyStationResponse;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.repository.SubwayStationMapper;
+import com.example.transportationserver.util.CoordinateValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 @Service
 public class SubwayStationService {
@@ -250,5 +253,68 @@ public class SubwayStationService {
         public double getCompletionRate() {
             return total > 0 ? (double) hasCoordinates / total * 100 : 0;
         }
+    }
+    
+    /**
+     * 근처 지하철역 조회 API용 메서드
+     * 클라이언트에서 좌표를 주면 근처 지하철역을 거리순으로 반환
+     */
+    @Cacheable(value = "nearbyStations", key = "#latitude + '_' + #longitude + '_' + #radiusKm + '_' + #limit")
+    public NearbyStationResponse findNearbyStations(Double latitude, Double longitude, Double radiusKm, Integer limit) {
+        // 입력 값 검증
+        if (!CoordinateValidator.isValidKoreanCoordinate(latitude, longitude)) {
+            throw new IllegalArgumentException("유효하지 않은 좌표입니다: lat=" + latitude + ", lon=" + longitude);
+        }
+        
+        // 기본값 설정
+        Double searchRadius = radiusKm != null ? Math.min(radiusKm, 50.0) : 2.0; // 최대 50km 제한
+        Integer searchLimit = limit != null ? Math.min(limit, 200) : 80; // 최대 200개 제한
+        
+        // 데이터베이스에서 근처 역 조회 (거리 계산 포함)
+        List<SubwayStation> nearbyStations = subwayStationMapper.findNearbyStations(latitude, longitude, searchRadius);
+        
+        // 제한된 개수만큼 자르기
+        List<SubwayStation> limitedStations = nearbyStations.stream()
+                .limit(searchLimit)
+                .collect(Collectors.toList());
+        
+        // DTO로 변환
+        List<NearbyStationResponse.NearbyStation> stationDtos = limitedStations.stream()
+                .map(station -> new NearbyStationResponse.NearbyStation(
+                    station.getId(),
+                    station.getName(),
+                    station.getLineNumber(),
+                    station.getLatitude(),
+                    station.getLongitude(),
+                    calculateDistance(latitude, longitude, station.getLatitude(), station.getLongitude()),
+                    station.getAddress(),
+                    station.getStationCode(),
+                    station.getRegion()
+                ))
+                .collect(Collectors.toList());
+        
+        return new NearbyStationResponse(stationDtos, stationDtos.size(), searchRadius, latitude, longitude);
+    }
+    
+    /**
+     * 두 좌표 간의 거리 계산 (하버사인 공식)
+     */
+    private Double calculateDistance(Double lat1, Double lon1, Double lat2, Double lon2) {
+        if (lat2 == null || lon2 == null) {
+            return null;
+        }
+        
+        final int R = 6371; // 지구 반지름 (km)
+        
+        Double latDistance = Math.toRadians(lat2 - lat1);
+        Double lonDistance = Math.toRadians(lon2 - lon1);
+        
+        Double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        
+        Double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
+        return R * c; // 킬로미터 단위
     }
 }
