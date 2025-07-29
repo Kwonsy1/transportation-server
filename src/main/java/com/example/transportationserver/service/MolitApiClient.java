@@ -60,30 +60,22 @@ public class MolitApiClient {
                     return finalUri;
                 })
                     .retrieve()
-                    .bodyToMono(String.class)
-                    .doOnNext(rawResponse -> {
-                        logger.info("Raw MOLIT API response: {}", rawResponse);
-                    })
-                    .flatMap(rawResponse -> {
-                        try {
-                            // Parse manually to see what's happening
-                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                            MolitApiResponse response = mapper.readValue(rawResponse, MolitApiResponse.class);
-                            
-                            logger.info("Parsed response - header: {}, body: {}", 
-                                response != null && response.response != null ? response.response.header : "null",
-                                response != null && response.response != null && response.response.body != null ? "exists" : "null");
-                            
-                            if (response != null && response.response != null && response.response.body != null) {
-                                List<MolitStationInfo> items = response.response.body.getItemsList();
-                                logger.info("Extracted {} items from response", items.size());
-                                return Mono.just(items);
-                            }
-                            return Mono.just(new ArrayList<MolitStationInfo>());
-                        } catch (Exception e) {
-                            logger.error("Error parsing MOLIT response: {}", e.getMessage());
-                            return Mono.just(new ArrayList<MolitStationInfo>());
+                    .bodyToMono(MolitApiResponse.class)
+                    .map(response -> {
+                        logger.info("Parsed MOLIT API response - header: {}, body: {}", 
+                            response != null && response.response != null ? response.response.header : "null",
+                            response != null && response.response != null && response.response.body != null ? "exists" : "null");
+                        
+                        if (response != null && response.response != null && response.response.body != null) {
+                            List<MolitStationInfo> items = response.response.body.getItemsList();
+                            logger.info("Extracted {} items from response", items.size());
+                            return items;
                         }
+                        return new ArrayList<MolitStationInfo>();
+                    })
+                    .onErrorResume(error -> {
+                        logger.error("Error parsing MOLIT response: {}", error.getMessage());
+                        return Mono.just(new ArrayList<MolitStationInfo>());
                     })
                     .doOnSuccess(result -> {
                         if (result.isEmpty()) {

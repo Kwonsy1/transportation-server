@@ -11,7 +11,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -28,9 +27,7 @@ public class CoordinateIntegrationService {
     @Autowired
     private StationNameResolver nameResolver;
     
-    // 좌표 캐시 (참고 코드의 Hive 캐싱 로직 응용)
-    private final Map<String, CachedCoordinate> coordinateCache = new ConcurrentHashMap<>();
-    private static final long CACHE_EXPIRATION_HOURS = 24 * 7; // 7일
+    // Spring 캐시를 사용하므로 수동 캐시 제거
     
     // 좌표 우선순위 (높을수록 신뢰도 높음)
     private static final Map<String, Integer> COORDINATE_PRIORITY = Map.of(
@@ -161,14 +158,6 @@ public class CoordinateIntegrationService {
      */
     @Cacheable(value = "coordinateCache", key = "#stationName + '_' + #region")
     public Mono<CoordinateResult> supplementCoordinate(String stationName, String region, String city) {
-        String cacheKey = generateCacheKey(stationName, region);
-        
-        // 캐시 확인 (참고 코드 로직)
-        CachedCoordinate cached = coordinateCache.get(cacheKey);
-        if (cached != null && !cached.isExpired()) {
-            logger.debug("Using cached coordinate for {}", stationName);
-            return Mono.just(cached.toCoordinateResult());
-        }
         
         return osmService.searchStationCoordinates(stationName, region)
             .map(osmCoordinate -> {
@@ -182,8 +171,7 @@ public class CoordinateIntegrationService {
                         70  // OSM 신뢰도
                     );
                     
-                    // 성공한 결과 캐싱
-                    cacheCoordinate(cacheKey, result);
+                    // Spring 캐시가 자동으로 처리
                 } else {
                     result = new CoordinateResult(null, null, "NOT_FOUND", 0);
                 }
@@ -199,27 +187,7 @@ public class CoordinateIntegrationService {
             });
     }
     
-    /**
-     * 좌표 캐시 저장 (참고 코드 로직)
-     */
-    private void cacheCoordinate(String cacheKey, CoordinateResult result) {
-        if (result.isValid()) {
-            coordinateCache.put(cacheKey, new CachedCoordinate(
-                result.getLatitude(),
-                result.getLongitude(),
-                result.getSource(),
-                result.getConfidence(),
-                LocalDateTime.now()
-            ));
-        }
-    }
-    
-    /**
-     * 캐시 키 생성
-     */
-    private String generateCacheKey(String stationName, String region) {
-        return stationName + "_" + (region != null ? region : "UNKNOWN");
-    }
+    // 좌표 캐시 저장은 Spring 캐시가 자동 처리
     
     /**
      * 특정 역의 좌표 업데이트 (참고 코드 updateStationCoordinates 로직)
@@ -232,10 +200,7 @@ public class CoordinateIntegrationService {
             return;
         }
         
-        String cacheKey = generateCacheKey(stationName, lineName);
-        cacheCoordinate(cacheKey, new CoordinateResult(
-            latitude, longitude, "MANUAL", 90
-        ));
+        // 수동 업데이트는 데이터베이스에서 처리
         
         logger.debug("{} 좌표 업데이트: {}, {}", stationName, latitude, longitude);
     }
@@ -355,33 +320,7 @@ public class CoordinateIntegrationService {
         public int getConfidence() { return confidence; }
     }
     
-    /**
-     * 캐시된 좌표 클래스 (참고 코드 스타일)
-     */
-    private static class CachedCoordinate {
-        private final Double latitude;
-        private final Double longitude;
-        private final String source;
-        private final int confidence;
-        private final LocalDateTime cachedAt;
-        
-        public CachedCoordinate(Double latitude, Double longitude, String source, 
-                              int confidence, LocalDateTime cachedAt) {
-            this.latitude = latitude;
-            this.longitude = longitude;
-            this.source = source;
-            this.confidence = confidence;
-            this.cachedAt = cachedAt;
-        }
-        
-        public boolean isExpired() {
-            return LocalDateTime.now().minusHours(CACHE_EXPIRATION_HOURS).isAfter(cachedAt);
-        }
-        
-        public CoordinateResult toCoordinateResult() {
-            return new CoordinateResult(latitude, longitude, source, confidence);
-        }
-    }
+    // CachedCoordinate 클래스 제거 - Spring 캐시가 자동 관리
     
     /**
      * 좌표 통계 클래스 (참고 코드 로직)

@@ -46,6 +46,7 @@ public class SubwayStationService {
         return subwayStationMapper.findNearbyStations(latitude, longitude, radiusKm);
     }
     
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public SubwayStation createStation(SubwayStation station) {
         if (station.getStationCode() != null && 
             subwayStationMapper.existsByStationCode(station.getStationCode())) {
@@ -60,6 +61,7 @@ public class SubwayStationService {
         return station;
     }
     
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public SubwayStation updateStation(Long id, SubwayStation stationData) {
         SubwayStation existingStation = getStationById(id);
         
@@ -76,6 +78,7 @@ public class SubwayStationService {
         return existingStation;
     }
     
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public void deleteStation(Long id) {
         if (subwayStationMapper.findById(id) == null) {
             throw new RuntimeException("Station not found with id: " + id);
@@ -97,6 +100,7 @@ public class SubwayStationService {
     /**
      * 특정 역의 좌표 업데이트
      */
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public boolean updateStationCoordinates(Long id, Double latitude, Double longitude) {
         int updated = subwayStationMapper.updateCoordinates(id, latitude, longitude);
         return updated > 0;
@@ -105,6 +109,7 @@ public class SubwayStationService {
     /**
      * 역명으로 찾아서 좌표 업데이트 (같은 이름의 여러 역이 있을 수 있음)
      */
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public int updateStationCoordinatesByName(String name, String lineNumber, Double latitude, Double longitude) {
         List<SubwayStation> stations = searchStationsByName(name);
         int updatedCount = 0;
@@ -127,6 +132,7 @@ public class SubwayStationService {
     /**
      * 특정 역들의 좌표를 일괄 업데이트
      */
+    @CacheEvict(value = {"stations", "stationSearch"}, allEntries = true)
     public Map<Long, Boolean> updateMultipleStationCoordinates(Map<Long, CoordinateUpdate> updates) {
         Map<Long, Boolean> results = new HashMap<>();
         

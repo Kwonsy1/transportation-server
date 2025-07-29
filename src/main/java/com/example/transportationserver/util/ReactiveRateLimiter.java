@@ -1,12 +1,18 @@
 package com.example.transportationserver.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Reactive Rate Limiter for API calls
@@ -14,6 +20,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Component
 public class ReactiveRateLimiter {
+    
+    private static final Logger logger = LoggerFactory.getLogger(ReactiveRateLimiter.class);
+    private static final Duration CLEANUP_THRESHOLD = Duration.ofHours(1);
     
     private final ConcurrentHashMap<ApiType, AtomicLong> lastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ApiType, Duration> intervals = new ConcurrentHashMap<>();
@@ -83,5 +92,36 @@ public class ReactiveRateLimiter {
      */
     public long getTimeSinceLastRequest(ApiType apiType) {
         return System.currentTimeMillis() - lastRequestTimes.get(apiType).get();
+    }
+    
+    /**
+     * 1시간마다 오래된 데이터 정리 (메모리 누수 방지)
+     */
+    @Scheduled(fixedRate = 3600000) // 1시간마다
+    public void cleanupOldData() {
+        long cutoffTime = System.currentTimeMillis() - CLEANUP_THRESHOLD.toMillis();
+        int resetCount = 0;
+        
+        for (Map.Entry<ApiType, AtomicLong> entry : lastRequestTimes.entrySet()) {
+            AtomicLong lastTime = entry.getValue();
+            if (lastTime.get() < cutoffTime) {
+                lastTime.set(0);
+                resetCount++;
+            }
+        }
+        
+        if (resetCount > 0) {
+            logger.debug("ReactiveRateLimiter: {}개 API 타입의 오래된 데이터를 정리했습니다", resetCount);
+        }
+    }
+    
+    /**
+     * 리소스 정리
+     */
+    @PreDestroy
+    public void cleanup() {
+        lastRequestTimes.clear();
+        intervals.clear();
+        logger.info("ReactiveRateLimiter 리소스 정리 완료");
     }
 }

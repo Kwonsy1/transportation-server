@@ -2,12 +2,16 @@ package com.example.transportationserver.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * API 호출 제한을 통합 관리하는 서비스
@@ -26,6 +30,9 @@ public class RateLimitService {
     private static final Duration OPENSTREETMAP_DELAY = Duration.ofSeconds(1);
     private static final Duration MOLIT_DELAY = Duration.ofMillis(500);
     private static final Duration SEOUL_API_DELAY = Duration.ofMillis(200);
+    
+    // 캐시 정리를 위한 설정
+    private static final Duration CACHE_CLEANUP_THRESHOLD = Duration.ofHours(1);
     
     /**
      * OpenStreetMap API 호출 전 대기
@@ -117,5 +124,36 @@ public class RateLimitService {
         status.put("apiCallTimes", new java.util.HashMap<>(lastCallTimes));
         status.put("trackedApis", lastCallTimes.keySet());
         return status;
+    }
+    
+    /**
+     * 1시간마다 오래된 캐시 엔트리 정리
+     */
+    @Scheduled(fixedRate = 3600000) // 1시간마다 실행
+    public void cleanupOldEntries() {
+        Instant cutoff = Instant.now().minus(CACHE_CLEANUP_THRESHOLD);
+        Iterator<Map.Entry<String, Instant>> iterator = lastCallTimes.entrySet().iterator();
+        int removedCount = 0;
+        
+        while (iterator.hasNext()) {
+            Map.Entry<String, Instant> entry = iterator.next();
+            if (entry.getValue().isBefore(cutoff)) {
+                iterator.remove();
+                removedCount++;
+            }
+        }
+        
+        if (removedCount > 0) {
+            logger.info("Rate limit 캐시에서 {}개의 오래된 엔트리를 정리했습니다", removedCount);
+        }
+    }
+    
+    /**
+     * 리소스 정리
+     */
+    @PreDestroy
+    public void cleanup() {
+        lastCallTimes.clear();
+        logger.info("RateLimitService 리소스 정리 완료");
     }
 }
