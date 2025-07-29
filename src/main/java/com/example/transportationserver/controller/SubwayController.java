@@ -527,7 +527,7 @@ public class SubwayController {
     @Operation(
         summary = "스트리밍 방식 좌표 보완",
         description = "메모리 효율적인 스트리밍 방식으로 좌표 보완 작업 수행",
-        tags = {"5. 최적화된 API"}
+        tags = {"1. 데이터 동기화 (외부 → DB)"}
     )
     public ResponseEntity<StandardApiResponse<String>> supplementCoordinatesStreaming() {
         try {
@@ -548,7 +548,7 @@ public class SubwayController {
     @Operation(
         summary = "메모리 사용량 확인",
         description = "현재 JVM 메모리 사용량 및 상태 확인",
-        tags = {"5. 최적화된 API"}
+        tags = {"3. 기본 유틸리티"}
     )
     public ResponseEntity<Map<String, Object>> getMemoryStatus() {
         try {
@@ -596,7 +596,7 @@ public class SubwayController {
     @Operation(
         summary = "가비지 컬렉션 실행",
         description = "System.gc()를 호출하여 메모리 정리 시도 (권장사항일 뿐, 강제 실행은 아님)",
-        tags = {"5. 최적화된 API"}
+        tags = {"3. 기본 유틸리티"}
     )
     public ResponseEntity<StandardApiResponse<String>> triggerGarbageCollection() {
         try {
@@ -626,7 +626,7 @@ public class SubwayController {
     @Operation(
         summary = "배치 처리 진행 상황",
         description = "현재 실행 중인 배치 작업의 진행 상황 확인",
-        tags = {"5. 최적화된 API"}
+        tags = {"1. 데이터 동기화 (외부 → DB)"}
     )
     public ResponseEntity<Map<String, Object>> getBatchProgress() {
         try {
