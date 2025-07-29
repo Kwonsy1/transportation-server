@@ -19,7 +19,7 @@ public class KoreanSubwayApiClient {
     private static final Logger logger = LoggerFactory.getLogger(KoreanSubwayApiClient.class);
     private final WebClient webClient;
     
-    @Value("${api.korea.subway.base.url:http://openAPI.seoul.go.kr:8088}")
+    @Value("${api.korea.subway.base.url}")
     private String baseUrl;
     
     @Value("${api.korea.subway.key}")

@@ -23,7 +23,7 @@
 ## 기술 스택
 
 - **Backend**: Spring Boot 3.3.2, Java 17
-- **Database**: H2 Database (파일 기반)
+- **Database**: PostgreSQL
 - **ORM**: MyBatis
 - **API 문서**: Swagger/OpenAPI 3
 - **Build Tool**: Gradle
@@ -33,6 +33,7 @@
 ### 필수 요구사항
 - Java 17 이상
 - Gradle 8.0 이상
+- PostgreSQL 12 이상
 
 ### 실행 방법
 
@@ -42,26 +43,38 @@ git clone <repository-url>
 cd transportation-server
 ```
 
-2. **환경 설정**
+2. **데이터베이스 설정**
 ```bash
-# application.properties에서 API 키 설정 (선택사항)
-# api.korea.subway.key=YOUR_SEOUL_API_KEY
-# api.molit.service.key=YOUR_MOLIT_API_KEY
+# PostgreSQL 설치 및 시작
+sudo apt install postgresql postgresql-contrib
+sudo service postgresql start
+
+# 데이터베이스 생성
+sudo -u postgres createdb transportation_db
+
+# 스키마 적용 (자동으로 적용됨)
 ```
 
-3. **서버 실행**
+3. **환경 설정**
 ```bash
-# 개발 환경으로 실행 (권장)
-SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
+# 환경 변수 설정 (선택사항)
+export POSTGRES_PASSWORD=your_password
+export KOREA_API_KEY=YOUR_SEOUL_API_KEY
+export MOLIT_SERVICE_KEY=YOUR_MOLIT_API_KEY
+```
 
-# 또는 기본 실행
+4. **서버 실행**
+```bash
+# 서버 실행
 ./gradlew bootRun
+
+# 또는 백그라운드 실행
+nohup ./gradlew bootRun > server.log 2>&1 &
 ```
 
-4. **서버 확인**
+5. **서버 확인**
 - 서버 주소: http://localhost:5300
 - API 문서: http://localhost:5300/swagger-ui.html
-- H2 콘솔: http://localhost:5300/h2-console
 
 ## API 엔드포인트
 
@@ -90,31 +103,35 @@ GET /api/subway/debug/osm-test?stationName={역명}
 
 ## 설정
 
-### 프로파일
-- **default**: 기본 설정 (포트 8080)
-- **dev**: 개발 환경 (포트 5300, 파일 기반 H2 DB)
+### 데이터베이스 연결 설정
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/transportation_db
+spring.datasource.username=postgres
+spring.datasource.password=${POSTGRES_PASSWORD:postgres}
+spring.datasource.driver-class-name=org.postgresql.Driver
+```
 
 ### 주요 설정 파일
 - `src/main/resources/application.properties`: 메인 설정
-- `src/main/resources/schema.sql`: 데이터베이스 스키마
 
 ## 데이터베이스
 
-### 자동 초기화
-서버 시작 시 자동으로:
-1. 데이터베이스 스키마 생성
-2. 서울시 API에서 지하철역 데이터 동기화 (799개 역)
-3. OpenStreetMap API를 통한 좌표 정보 보완
+### 데이터베이스 구조
+PostgreSQL 데이터베이스에 799개의 지하철역 데이터가 저장되어 있습니다.
+- 전국 지하철역 정보 (서울, 부산, 대구, 인천, 광주, 대전 등)
+- 모든 역에 좌표 정보 포함
+- 다중 데이터 소스 지원 (서울API, 국토교통부API, OSM)
 
-### 스키마 구조
+### 주요 테이블
 ```sql
+-- 지하철역 정보
 CREATE TABLE subway_stations (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     line_number VARCHAR(20),
     station_code VARCHAR(20),
-    latitude DOUBLE,
-    longitude DOUBLE,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     address TEXT,
     external_id VARCHAR(50),
     region VARCHAR(50),
@@ -126,6 +143,12 @@ CREATE TABLE subway_stations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 지하철 시간표 (확장용)
+CREATE TABLE subway_schedules (...);
+
+-- 지하철역 출구 정보 (확장용)  
+CREATE TABLE subway_exits (...);
 ```
 
 ## 외부 API 설정
@@ -172,11 +195,11 @@ SERVICE_KEY_IS_NOT_REGISTERED_ERROR
 
 ### 포트 충돌
 - 기본 포트 5300이 사용 중인 경우 `server.port` 설정 변경
-- 개발 환경에서는 `SPRING_PROFILES_ACTIVE=dev` 설정 확인
 
-### 데이터베이스 초기화 실패
-- H2 데이터베이스 파일 권한 확인
-- `./data/` 디렉토리 생성 권한 확인
+### 데이터베이스 연결 실패
+- PostgreSQL 서비스 실행 확인: `sudo service postgresql status`
+- 데이터베이스 존재 확인: `sudo -u postgres psql -l`
+- 연결 권한 확인: `pg_hba.conf` 설정
 
 ## 라이선스
 
