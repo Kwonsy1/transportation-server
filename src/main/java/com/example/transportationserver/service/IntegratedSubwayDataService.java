@@ -1,5 +1,6 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.util.DataMapper;
 import com.example.transportationserver.util.ReactiveRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,9 @@ public class IntegratedSubwayDataService {
     
     @Autowired
     private ReactiveRateLimiter rateLimiter;
+    
+    @Autowired
+    private RateLimitService rateLimitService;
     
     @Value("${api.korea.subway.key}")
     private String apiKey;
@@ -279,8 +283,8 @@ public class IntegratedSubwayDataService {
         StationInfo info = new StationInfo();
         info.setStationName(molitStation.getStationName());
         info.setLineNumber(extractLineFromRouteName(molitStation.getRouteName()));
-        info.setLatitude(parseDouble(molitStation.getLatitude()));
-        info.setLongitude(parseDouble(molitStation.getLongitude()));
+        info.setLatitude(DataMapper.parseDouble(molitStation.getLatitude()));
+        info.setLongitude(DataMapper.parseDouble(molitStation.getLongitude()));
         info.setAddress(molitStation.getRoadAddress());
         info.setDataSource("MOLIT_API");
         info.setStationId(molitStation.getStationId());
@@ -296,14 +300,7 @@ public class IntegratedSubwayDataService {
         return "1";
     }
     
-    private Double parseDouble(String value) {
-        if (value == null || value.trim().isEmpty()) return null;
-        try {
-            return Double.parseDouble(value.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
+    // DataMapper.DataMapper.parseDouble() 사용으로 중복 제거됨
     
     // 내부 클래스들
     public static class StationGroup {
@@ -516,15 +513,8 @@ public class IntegratedSubwayDataService {
                     coordinateProgressFailed.incrementAndGet();
                     logger.error("❌ 좌표 보완 실패: {} - {}", station.getName(), e.getMessage());
                     
-                    // 에러 발생 시에도 1초 대기 (API 정책 준수)
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        logger.warn("작업이 중단되었습니다.");
-                        coordinateProgressStatus.set("INTERRUPTED");
-                        return;
-                    }
+                    // 에러 발생 시에도 API 정책 준수
+                    rateLimitService.waitForOpenStreetMap();
                 }
             }
             

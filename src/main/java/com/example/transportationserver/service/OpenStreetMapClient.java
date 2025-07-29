@@ -1,9 +1,13 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.util.CoordinateValidator;
+import com.example.transportationserver.util.ErrorHandler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -17,17 +21,14 @@ import java.util.concurrent.atomic.AtomicReference;
 public class OpenStreetMapClient {
     
     private static final Logger logger = LoggerFactory.getLogger(OpenStreetMapClient.class);
-    private static final String NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org";
-    private static final Duration RATE_LIMIT_DELAY = Duration.ofSeconds(1); // 1초 제한
-    
     private final WebClient webClient;
-    private final AtomicReference<LocalDateTime> lastRequestTime = new AtomicReference<>(LocalDateTime.MIN);
+    private final RateLimitService rateLimitService;
     
-    public OpenStreetMapClient() {
-        this.webClient = WebClient.builder()
-                .baseUrl(NOMINATIM_BASE_URL)
-                .defaultHeader("User-Agent", "Transportation-Server/1.0 (contact@example.com)")
-                .build();
+    @Autowired
+    public OpenStreetMapClient(@Qualifier("nominatimWebClient") WebClient webClient,
+                              RateLimitService rateLimitService) {
+        this.webClient = webClient;
+        this.rateLimitService = rateLimitService;
     }
     
     /**
@@ -45,7 +46,7 @@ public class OpenStreetMapClient {
                         logger.warn("No valid coordinates found for: {} in {}", stationName, region);
                     }
                 })
-                .doOnError(error -> logger.error("Error searching coordinates for {}: {}", stationName, error.getMessage()));
+                .onErrorResume(ErrorHandler.createReactiveErrorHandler(null, logger, "좌표 검색 (" + stationName + ")"));
     }
     
     /**
@@ -53,24 +54,8 @@ public class OpenStreetMapClient {
      */
     private Mono<Void> enforceRateLimit() {
         return Mono.fromRunnable(() -> {
-            LocalDateTime now = LocalDateTime.now();
-            LocalDateTime lastRequest = lastRequestTime.get();
-            
-            Duration timeSinceLastRequest = Duration.between(lastRequest, now);
-            
-            if (timeSinceLastRequest.compareTo(RATE_LIMIT_DELAY) < 0) {
-                Duration sleepTime = RATE_LIMIT_DELAY.minus(timeSinceLastRequest);
-                try {
-                    Thread.sleep(sleepTime.toMillis());
-                    logger.debug("Rate limit applied: waited {}ms", sleepTime.toMillis());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Rate limit wait interrupted", e);
-                }
-            }
-            
-            lastRequestTime.set(LocalDateTime.now());
-        });
+            rateLimitService.waitForOpenStreetMap();
+        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()).then();
     }
     
     /**
@@ -107,23 +92,23 @@ public class OpenStreetMapClient {
         // 지하철역 관련 결과 우선 선택
         for (NominatimResponse response : responses) {
             if (isSubwayStationResult(response)) {
-                return new CoordinateResult(
-                        Double.parseDouble(response.lat),
-                        Double.parseDouble(response.lon),
-                        response.display_name,
-                        response.importance
-                );
+                Double lat = CoordinateValidator.parseCoordinate(response.lat);
+                Double lon = CoordinateValidator.parseCoordinate(response.lon);
+                if (CoordinateValidator.isValidKoreanCoordinate(lat, lon)) {
+                    return new CoordinateResult(lat, lon, response.display_name, response.importance);
+                }
             }
         }
         
         // 지하철역 결과가 없으면 첫 번째 결과 사용
         NominatimResponse first = responses[0];
-        return new CoordinateResult(
-                Double.parseDouble(first.lat),
-                Double.parseDouble(first.lon),
-                first.display_name,
-                first.importance
-        );
+        Double lat = CoordinateValidator.parseCoordinate(first.lat);
+        Double lon = CoordinateValidator.parseCoordinate(first.lon);
+        if (CoordinateValidator.isValidKoreanCoordinate(lat, lon)) {
+            return new CoordinateResult(lat, lon, first.display_name, first.importance);
+        }
+        
+        return null; // 유효한 좌표가 없을 경우
     }
     
     /**
@@ -180,7 +165,7 @@ public class OpenStreetMapClient {
         }
         
         public boolean isValid() {
-            return latitude != null && longitude != null;
+            return CoordinateValidator.isValidKoreanCoordinate(latitude, longitude);
         }
         
         public Double getLatitude() { return latitude; }

@@ -29,6 +29,9 @@ public class SubwayDataSyncService {
     @Autowired
     private SubwayStationMapper stationMapper;
     
+    @Autowired
+    private RateLimitService rateLimitService;
+    
     /**
      * 지하철역 데이터 동기화
      */
@@ -69,7 +72,7 @@ public class SubwayDataSyncService {
                 currentPage++;
                 
                 // API 호출 제한을 고려한 딜레이
-                Thread.sleep(100);
+                rateLimitService.waitForSeoulApi();
             }
             
             logger.info("Subway station data synchronization completed. Total synced: {}", totalSynced);
@@ -182,7 +185,7 @@ public class SubwayDataSyncService {
                         }
                     }
                     
-                    Thread.sleep(50); // API 호출 제한 고려
+                    rateLimitService.waitForSeoulApi(); // API 호출 제한 고려
                 }
             }
             
@@ -246,7 +249,7 @@ public class SubwayDataSyncService {
                 currentPage++;
                 
                 // API 호출 제한을 고려한 딜레이
-                Thread.sleep(100);
+                rateLimitService.waitForSeoulApi();
             }
             
             logger.info("Subway station data synchronization completed. Total synced: {}", totalSynced);

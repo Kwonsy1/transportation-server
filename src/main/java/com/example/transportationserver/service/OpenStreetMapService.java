@@ -1,9 +1,13 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.util.CoordinateValidator;
+import com.example.transportationserver.util.ErrorHandler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -19,19 +23,16 @@ public class OpenStreetMapService {
     private static final Logger logger = LoggerFactory.getLogger(OpenStreetMapService.class);
     
     private final WebClient webClient;
+    private final RateLimitService rateLimitService;
     
-    private static final String NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration RETRY_DELAY = Duration.ofSeconds(2);
-    private static final Duration API_RATE_LIMIT = Duration.ofSeconds(1);
     
-    private volatile long lastRequestTime = 0;
-    
-    public OpenStreetMapService() {
-        this.webClient = WebClient.builder()
-            .baseUrl(NOMINATIM_BASE_URL)
-            .defaultHeader("User-Agent", "transportation")
-            .build();
+    @Autowired
+    public OpenStreetMapService(@Qualifier("nominatimWebClient") WebClient webClient,
+                               RateLimitService rateLimitService) {
+        this.webClient = webClient;
+        this.rateLimitService = rateLimitService;
     }
     
     public Mono<Optional<Coordinate>> searchStationCoordinates(String stationName, String region) {
@@ -93,10 +94,7 @@ public class OpenStreetMapService {
                     }
                 })
                 .map(this::selectBestResult)
-                .onErrorResume(error -> {
-                    logger.warn("OSM 검색 오류 (쿼리: '{}'): {}", query, error.getMessage());
-                    return Mono.just(Optional.empty());
-                }));
+                .onErrorResume(ErrorHandler.createOptionalErrorHandler(logger, "OSM 검색 (쿼리: '" + query + "')")));
     }
     
     /**
@@ -104,22 +102,7 @@ public class OpenStreetMapService {
      */
     private Mono<Void> enforceRateLimit() {
         return Mono.fromRunnable(() -> {
-            long currentTime = System.currentTimeMillis();
-            long timeSinceLastRequest = currentTime - lastRequestTime;
-            
-            if (timeSinceLastRequest < API_RATE_LIMIT.toMillis()) {
-                long sleepTime = API_RATE_LIMIT.toMillis() - timeSinceLastRequest;
-                logger.debug("API 속도 제한 준수: {}ms 대기", sleepTime);
-                
-                try {
-                    Thread.sleep(sleepTime);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.warn("Rate limit 대기 중 인터럽트 발생");
-                }
-            }
-            
-            lastRequestTime = System.currentTimeMillis();
+            rateLimitService.waitForOpenStreetMap();
         }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()).then();
     }
     
@@ -230,8 +213,7 @@ public class OpenStreetMapService {
     }
     
     private boolean isValidKoreanCoordinate(double lat, double lon) {
-        return lat >= 33.0 && lat <= 38.5 && 
-               lon >= 124.0 && lon <= 132.0;
+        return CoordinateValidator.isCoordinateInSeoulRange(lat, lon);
     }
     
     @JsonIgnoreProperties(ignoreUnknown = true)

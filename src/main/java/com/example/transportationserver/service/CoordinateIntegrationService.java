@@ -1,5 +1,7 @@
 package com.example.transportationserver.service;
 
+import com.example.transportationserver.util.CoordinateValidator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -119,20 +121,14 @@ public class CoordinateIntegrationService {
      * 좌표 유효성 검증 (참고 코드 isCoordinateValid 로직)
      */
     public boolean isCoordinateValid(double latitude, double longitude) {
-        // 한국 영역 내 좌표 검증 + 기본 유효성 검증
-        return latitude >= 33.0 && latitude <= 43.0 &&    // 위도 범위
-               longitude >= 124.0 && longitude <= 132.0 && // 경도 범위
-               latitude != 0.0 && longitude != 0.0 &&      // 0,0 좌표 제외
-               !Double.isNaN(latitude) && !Double.isNaN(longitude) && // NaN 검증
-               !Double.isInfinite(latitude) && !Double.isInfinite(longitude); // 무한대 검증
+        return CoordinateValidator.isValidKoreanCoordinate(latitude, longitude);
     }
     
     /**
      * 좌표가 비어있는지 확인 (참고 코드 isCoordinateEmpty 로직)
      */
     public boolean isCoordinateEmpty(Double latitude, Double longitude) {
-        return latitude == null || longitude == null || 
-               latitude == 0.0 || longitude == 0.0;
+        return CoordinateValidator.isCoordinateEmpty(latitude, longitude);
     }
     
     /**

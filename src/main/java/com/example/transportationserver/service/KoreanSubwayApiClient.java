@@ -4,6 +4,8 @@ import com.example.transportationserver.dto.*;
 import com.example.transportationserver.dto.SeoulApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -25,14 +27,9 @@ public class KoreanSubwayApiClient {
     @Value("${api.korea.subway.key}")
     private String apiKey;
     
-    public KoreanSubwayApiClient() {
-        this.webClient = WebClient.builder()
-                .defaultHeader("User-Agent", "Transportation-Server/1.0")
-                .defaultHeader("Accept", "application/json")
-                .defaultHeader("Accept-Charset", "UTF-8")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024))
-                .build();
-        
+    @Autowired
+    public KoreanSubwayApiClient(@Qualifier("seoulApiWebClient") WebClient webClient) {
+        this.webClient = webClient;
         logger.info("한국 지하철 API 클라이언트 초기화 완료");
     }
     

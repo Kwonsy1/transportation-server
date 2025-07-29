@@ -9,6 +9,7 @@ import com.example.transportationserver.service.SubwayStationService;
 import com.example.transportationserver.service.OpenStreetMapService;
 import com.example.transportationserver.service.BatchCoordinateService;
 import com.example.transportationserver.service.StreamingStationService;
+import com.example.transportationserver.util.ErrorHandler;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -69,9 +70,8 @@ public class SubwayController {
                 "백그라운드에서 처리됩니다. 로그를 확인해주세요."
             ));
         } catch (Exception e) {
-            logger.error("데이터 동기화 시작 실패", e);
-            return ResponseEntity.internalServerError()
-                .body(StandardApiResponse.error("동기화 실패: " + e.getMessage(), 500));
+            ErrorHandler.logAndHandle(logger, "데이터 동기화 시작", e);
+            return ErrorHandler.createErrorFromException(e, "데이터 동기화");
         }
     }
 
@@ -90,25 +90,21 @@ public class SubwayController {
         
         logger.info("DB 역명 검색 요청: {}", stationName);
         
-        try {
-            List<SubwayStation> stations = stationService.searchStationsByName(stationName);
-            logger.info("{} DB 검색 결과: {}개 역", stationName, stations.size());
-            
-            if (!stations.isEmpty()) {
-                logger.info("첫 번째 결과: {} ({}호선)", 
-                    stations.get(0).getName(), stations.get(0).getLineNumber());
-            }
-            
-            return ResponseEntity.ok(StandardApiResponse.successWithCount(
-                stations, 
-                stations.size() + "개 역 검색 완료 (로컬 DB)",
-                stations.size()
-            ));
-        } catch (Exception e) {
-            logger.error("{} DB 검색 실패: {}", stationName, e.getMessage());
-            return ResponseEntity.internalServerError()
-                .body(StandardApiResponse.error("역 검색 실패: " + e.getMessage(), 500));
-        }
+        return ErrorHandler.handleListWithTryCatch(
+            () -> {
+                List<SubwayStation> stations = stationService.searchStationsByName(stationName);
+                logger.info("{} DB 검색 결과: {}개 역", stationName, stations.size());
+                
+                if (!stations.isEmpty()) {
+                    logger.info("첫 번째 결과: {} ({}호선)", 
+                        stations.get(0).getName(), stations.get(0).getLineNumber());
+                }
+                
+                return stations;
+            },
+            "DB 역명 검색 (" + stationName + ")",
+            logger
+        );
     }
     
     @GetMapping("/stations/search-external")

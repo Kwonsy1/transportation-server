@@ -5,6 +5,7 @@ import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.repository.SubwayStationMapper;
 import com.example.transportationserver.service.MolitApiClient.MolitStationInfo;
 import com.example.transportationserver.service.OpenStreetMapClient.CoordinateResult;
+import com.example.transportationserver.util.DataMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,9 @@ public class EnhancedSubwayDataService {
     
     @Autowired
     private SubwayStationMapper stationMapper;
+    
+    @Autowired
+    private RateLimitService rateLimitService;
     
     /**
      * 다층 데이터 수집 메인 프로세스
@@ -104,7 +108,7 @@ public class EnhancedSubwayDataService {
                     currentPage++;
                     
                     // API 호출 제한 고려
-                    Thread.sleep(100);
+                    rateLimitService.waitForSeoulApi();
                 }
             }
             
@@ -129,7 +133,7 @@ public class EnhancedSubwayDataService {
                 }
                 
                 // API 호출 제한 고려
-                Thread.sleep(50);
+                rateLimitService.waitForMolit();
                 
             } catch (Exception e) {
                 logger.warn("Failed to get MOLIT data for station: {}", stationName);
@@ -179,16 +183,7 @@ public class EnhancedSubwayDataService {
      * 기본 역 생성 (MOLIT 데이터 없는 경우)
      */
     private SubwayStation createBasicStation(String stationName) {
-        SubwayStation station = new SubwayStation();
-        station.setName(stationName);
-        station.setFullName(stationName);
-        station.setRegion("");  // 서울시 API에서 온 데이터이므로
-        station.setDataSource("SEOUL_API");
-        station.setHasCoordinates(false);
-        station.setCreatedAt(LocalDateTime.now());
-        station.setUpdatedAt(LocalDateTime.now());
-        
-        return station;
+        return DataMapper.createBasicStation(stationName, "1");
     }
     
     /**

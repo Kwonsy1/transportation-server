@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.example.transportationserver.util.DataMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -19,21 +22,14 @@ import java.util.List;
 public class MolitApiClient {
     
     private static final Logger logger = LoggerFactory.getLogger(MolitApiClient.class);
-    private static final String MOLIT_BASE_URL = "https://apis.data.go.kr/1613000";
-    
     private final WebClient webClient;
     
     @Value("${api.molit.service.key}")
     private String serviceKey;
     
-    public MolitApiClient() {
-        this.webClient = WebClient.builder()
-                .baseUrl(MOLIT_BASE_URL)
-                .defaultHeader("User-Agent", "Transportation-Server/1.0")
-                .defaultHeader("Accept", "application/json")
-                .defaultHeader("Accept-Charset", "UTF-8")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(2 * 1024 * 1024))
-                .build();
+    @Autowired
+    public MolitApiClient(@Qualifier("molitApiWebClient") WebClient webClient) {
+        this.webClient = webClient;
     }
     
     /**
@@ -133,21 +129,7 @@ public class MolitApiClient {
      * 노선번호를 MOLIT API 형식으로 변환
      */
     private String convertLineNumber(String lineNumber) {
-        if (lineNumber == null) return "";
-        
-        // 기본적인 매핑 (실제 MOLIT API 문서 참조하여 정확한 값으로 수정 필요)
-        switch (lineNumber.replaceAll("[^0-9]", "")) {
-            case "1": return "1001";  // 1호선
-            case "2": return "1002";  // 2호선
-            case "3": return "1003";  // 3호선
-            case "4": return "1004";  // 4호선
-            case "5": return "1005";  // 5호선
-            case "6": return "1006";  // 6호선
-            case "7": return "1007";  // 7호선
-            case "8": return "1008";  // 8호선
-            case "9": return "1009";  // 9호선
-            default: return lineNumber;
-        }
+        return DataMapper.convertMolitLineNumber(lineNumber);
     }
     
     /**

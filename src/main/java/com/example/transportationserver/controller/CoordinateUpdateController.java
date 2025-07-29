@@ -1,6 +1,7 @@
 package com.example.transportationserver.controller;
 
 import com.example.transportationserver.service.SubwayStationService;
+import com.example.transportationserver.util.ErrorHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +45,7 @@ public class CoordinateUpdateController {
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
-            logger.error("좌표 업데이트 실패: {}", e.getMessage());
+            ErrorHandler.logAndHandle(logger, "좌표 업데이트", e);
             result.put("success", false);
             result.put("error", e.getMessage());
             return ResponseEntity.internalServerError().body(result);
