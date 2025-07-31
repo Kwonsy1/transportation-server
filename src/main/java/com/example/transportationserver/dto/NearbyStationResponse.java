@@ -69,13 +69,16 @@ public class NearbyStationResponse {
         @JsonProperty("station_code")
         private String stationCode;
         
+        @JsonProperty("subway_station_id")
+        private String subwayStationId;
+        
         @JsonProperty("region")
         private String region;
         
         public NearbyStation() {}
         
         public NearbyStation(Long id, String name, String lineNumber, Double latitude, Double longitude, 
-                           Double distanceKm, String address, String stationCode, String region) {
+                           Double distanceKm, String address, String stationCode, String subwayStationId, String region) {
             this.id = id;
             this.name = name;
             this.lineNumber = lineNumber;
@@ -83,6 +86,7 @@ public class NearbyStationResponse {
             this.distanceKm = distanceKm;
             this.address = address;
             this.stationCode = stationCode;
+            this.subwayStationId = subwayStationId;
             this.region = region;
         }
         
@@ -107,6 +111,9 @@ public class NearbyStationResponse {
         
         public String getStationCode() { return stationCode; }
         public void setStationCode(String stationCode) { this.stationCode = stationCode; }
+        
+        public String getSubwayStationId() { return subwayStationId; }
+        public void setSubwayStationId(String subwayStationId) { this.subwayStationId = subwayStationId; }
         
         public String getRegion() { return region; }
         public void setRegion(String region) { this.region = region; }

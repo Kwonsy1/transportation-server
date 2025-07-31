@@ -196,6 +196,7 @@ public class EnhancedSubwayDataService {
         station.setRegion(region);
         station.setCity(molitInfo.getSggName());
         station.setExternalId(molitInfo.getStationId());
+        station.setSubwayStationId(molitInfo.getStationId()); // MOLIT API subwayStationId 저장
         station.setAddress(Optional.ofNullable(molitInfo.getRoadAddress())
                 .orElse(molitInfo.getLotAddress()));
         station.setLineNumber(molitInfo.getRouteName());

@@ -13,6 +13,7 @@ public class SubwayStation {
     private Double longitude;
     private String address;
     private String externalId;
+    private String subwayStationId; // MOLIT API subwayStationId (예: MTRARA1A01)
     private String region;        // 지역 (서울특별시, 경기도, 대전광역시 등)
     private String city;          // 시/구 (중구, 강남구 등)
     private String fullName;      // 전체 이름 (시청역(서울), 시청역(대전))
@@ -65,6 +66,9 @@ public class SubwayStation {
     
     public String getExternalId() { return externalId; }
     public void setExternalId(String externalId) { this.externalId = externalId; }
+    
+    public String getSubwayStationId() { return subwayStationId; }
+    public void setSubwayStationId(String subwayStationId) { this.subwayStationId = subwayStationId; }
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

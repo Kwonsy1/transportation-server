@@ -1,6 +1,7 @@
 package com.example.transportationserver.controller;
 
 import com.example.transportationserver.dto.NearbyStationResponse;
+import com.example.transportationserver.dto.GroupedNearbyStationResponse;
 import com.example.transportationserver.dto.StandardApiResponse;
 import com.example.transportationserver.service.SubwayStationService;
 import com.example.transportationserver.util.ErrorHandler;
@@ -40,8 +41,9 @@ public class NearbyStationController {
      * @return 거리순으로 정렬된 근처 지하철역 목록
      */
     @Operation(
-        summary = "근처 지하철역 조회",
-        description = "주어진 좌표를 중심으로 지정된 반경 내의 지하철역을 거리순으로 조회합니다. " +
+        summary = "근처 지하철역 조회 (그룹화된 결과)",
+        description = "주어진 좌표를 중심으로 지정된 반경 내의 지하철역을 그룹화하여 거리순으로 조회합니다. " +
+                      "같은 역명이고 5km 이내에 있는 역들을 하나로 그룹화하여 반환합니다. " +
                       "최대 200개까지 조회 가능하며, 기본적으로 80개를 반환합니다.",
         tags = {"2. 클라이언트 API (DB → 클라이언트)"}
     )
@@ -49,13 +51,13 @@ public class NearbyStationController {
         @ApiResponse(
             responseCode = "200", 
             description = "조회 성공",
-            content = @Content(schema = @Schema(implementation = NearbyStationResponse.class))
+            content = @Content(schema = @Schema(implementation = GroupedNearbyStationResponse.class))
         ),
         @ApiResponse(responseCode = "400", description = "잘못된 좌표 또는 파라미터"),
         @ApiResponse(responseCode = "500", description = "서버 내부 오류")
     })
     @GetMapping("/nearby")
-    public ResponseEntity<StandardApiResponse<NearbyStationResponse>> getNearbyStations(
+    public ResponseEntity<StandardApiResponse<GroupedNearbyStationResponse>> getNearbyStations(
             @Parameter(description = "위도 (33.0 ~ 43.0)", required = true, example = "37.5665")
             @RequestParam("latitude") Double latitude,
             
@@ -86,10 +88,10 @@ public class NearbyStationController {
                 throw new IllegalArgumentException("결과 개수는 0보다 커야 합니다");
             }
             
-            // 서비스 호출
-            NearbyStationResponse response = stationService.findNearbyStations(latitude, longitude, radius, limit);
+            // 서비스 호출 (그룹화된 버전)
+            GroupedNearbyStationResponse response = stationService.findNearbyStationsGrouped(latitude, longitude, radius, limit);
             
-            logger.info("근처 지하철역 조회 완료: {}개 역 반환 (반경: {}km)", 
+            logger.info("근처 지하철역 조회 완료: {}개 그룹 반환 (반경: {}km)", 
                        response.getTotalCount(), response.getSearchRadiusKm());
             
             return response;
@@ -103,12 +105,12 @@ public class NearbyStationController {
      * 특정 지점 기준 가장 가까운 지하철역 조회 (편의 API)
      */
     @Operation(
-        summary = "가장 가까운 지하철역 조회", 
-        description = "주어진 좌표에서 가장 가까운 지하철역 1개를 조회합니다.",
+        summary = "가장 가까운 지하철역 조회 (그룹화된 결과)", 
+        description = "주어진 좌표에서 가장 가까운 지하철역 그룹 1개를 조회합니다. 같은 역명의 여러 노선이 있을 경우 하나로 그룹화됩니다.",
         tags = {"2. 클라이언트 API (DB → 클라이언트)"}
     )
     @GetMapping("/nearest")
-    public ResponseEntity<StandardApiResponse<NearbyStationResponse>> getNearestStation(
+    public ResponseEntity<StandardApiResponse<GroupedNearbyStationResponse>> getNearestStation(
             @Parameter(description = "위도", required = true, example = "37.5665")
             @RequestParam("latitude") Double latitude,
             
@@ -119,17 +121,17 @@ public class NearbyStationController {
         return ErrorHandler.handleWithTryCatch(() -> {
             logger.info("가장 가까운 지하철역 조회 요청: lat={}, lon={}", latitude, longitude);
             
-            // 반경 10km, 결과 1개로 제한
-            NearbyStationResponse response = stationService.findNearbyStations(latitude, longitude, 10.0, 1);
+            // 반경 10km, 결과 1개로 제한 (그룹화된 버전)
+            GroupedNearbyStationResponse response = stationService.findNearbyStationsGrouped(latitude, longitude, 10.0, 1);
             
             if (response.getTotalCount() == 0) {
                 logger.info("반경 10km 내에 지하철역이 없습니다");
                 return response;
             }
             
-            NearbyStationResponse.NearbyStation nearest = response.getStations().get(0);
-            logger.info("가장 가까운 지하철역: {} ({}호선, 거리: {:.2f}km)", 
-                       nearest.getName(), nearest.getLineNumber(), nearest.getDistanceKm());
+            GroupedNearbyStationResponse.GroupedNearbyStation nearest = response.getStations().get(0);
+            logger.info("가장 가까운 지하철역: {} (노선: {}, 거리: {:.2f}km)", 
+                       nearest.getStationName(), nearest.getLines(), nearest.getDistanceKm());
             
             return response;
             

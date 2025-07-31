@@ -48,16 +48,24 @@ public class MolitApiClient {
         
         return webClient.get()
                 .uri(uriBuilder -> {
-                    var finalUri = uriBuilder
-                            .path("/SubwayInfoService/getKwrdFndSubwaySttnList")
-                            .queryParam("serviceKey", serviceKey)
-                            .queryParam("pageNo", 1)
-                            .queryParam("numOfRows", 100)
-                            .queryParam("_type", "json")
-                            .queryParam("subwayStationName", stationName)
-                            .build();
-                    logger.info("Final MOLIT API URL: {}", finalUri.toString());
-                    return finalUri;
+                    try {
+                        // 완전한 URL을 직접 구성하여 이중 인코딩 방지
+                        String encodedServiceKey = URLEncoder.encode(serviceKey, StandardCharsets.UTF_8);
+                        String encodedStationName = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
+                        
+                        String fullUrl = String.format(
+                            "%s/SubwayInfoService/getKwrdFndSubwaySttnList?serviceKey=%s&pageNo=1&numOfRows=100&_type=json&subwayStationName=%s",
+                            uriBuilder.build().toString(), // base URL
+                            encodedServiceKey,
+                            encodedStationName
+                        );
+                        
+                        logger.info("Final MOLIT API URL: {}", fullUrl);
+                        return java.net.URI.create(fullUrl);
+                    } catch (Exception e) {
+                        logger.error("URI building failed: {}", e.getMessage());
+                        throw new RuntimeException("Failed to build MOLIT API URI", e);
+                    }
                 })
                     .retrieve()
                     .bodyToMono(MolitApiResponse.class)
@@ -89,6 +97,83 @@ public class MolitApiClient {
     }
     
     /**
+     * 전체 지하철역 조회 (페이징) - String 응답을 직접 처리하여 XML/JSON 이슈 해결
+     */
+    public Mono<List<MolitStationInfo>> getAllStations(int numOfRows, int pageNo) {
+        if (serviceKey == null || serviceKey.isEmpty()) {
+            logger.warn("MOLIT service key not configured");
+            return Mono.just(new ArrayList<MolitStationInfo>());
+        }
+        
+        logger.info("Calling MOLIT API for all stations: numOfRows={}, pageNo={}", numOfRows, pageNo);
+        
+        return webClient.get()
+                .uri(uriBuilder -> {
+                    try {
+                        // 완전한 URL을 직접 구성하여 이중 인코딩 방지
+                        String encodedServiceKey = URLEncoder.encode(serviceKey, StandardCharsets.UTF_8);
+                        
+                        String fullUrl = String.format(
+                            "%s/SubwayInfoService/getKwrdFndSubwaySttnList?serviceKey=%s&pageNo=%d&numOfRows=%d&_type=json&subwayStationId=",
+                            uriBuilder.build().toString(), // base URL
+                            encodedServiceKey, pageNo, numOfRows
+                        );
+                        
+                        logger.info("Final MOLIT API URL: {}", fullUrl);
+                        return java.net.URI.create(fullUrl);
+                    } catch (Exception e) {
+                        logger.error("URI building failed: {}", e.getMessage());
+                        throw new RuntimeException("Failed to build MOLIT API URI", e);
+                    }
+                })
+                .retrieve()
+                .bodyToMono(String.class)  // String으로 먼저 받아서 내용 확인
+                .map(responseBody -> {
+                    logger.debug("Raw MOLIT API response: {}", responseBody.substring(0, Math.min(200, responseBody.length())));
+                    
+                    // XML 응답인지 확인
+                    if (responseBody.trim().startsWith("<")) {
+                        logger.error("MOLIT API returned XML instead of JSON: {}", responseBody.substring(0, Math.min(500, responseBody.length())));
+                        return new ArrayList<MolitStationInfo>();
+                    }
+                    
+                    try {
+                        // JSON 파싱
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        MolitApiResponse response = mapper.readValue(responseBody, MolitApiResponse.class);
+                        
+                        logger.info("Parsed MOLIT API response - header: {}, body: {}", 
+                            response != null && response.response != null ? response.response.header : "null",
+                            response != null && response.response != null && response.response.body != null ? "exists" : "null");
+                        
+                        if (response != null && response.response != null && response.response.body != null) {
+                            List<MolitStationInfo> items = response.response.body.getItemsList();
+                            logger.info("Extracted {} items from response", items.size());
+                            return items;
+                        }
+                        return new ArrayList<MolitStationInfo>();
+                        
+                    } catch (Exception e) {
+                        logger.error("Error parsing JSON response: {}", e.getMessage());
+                        return new ArrayList<MolitStationInfo>();
+                    }
+                })
+                .onErrorResume(error -> {
+                    logger.error("Error fetching MOLIT response: {}", error.getMessage());
+                    return Mono.just(new ArrayList<MolitStationInfo>());
+                })
+                .doOnSuccess(result -> {
+                    if (result.isEmpty()) {
+                        logger.debug("No MOLIT data found for page: {}", pageNo);
+                    } else {
+                        logger.info("Found {} MOLIT records for page: {}", result.size(), pageNo);
+                    }
+                })
+                .doOnError(error -> logger.error("Error fetching MOLIT data for page {}: {}", pageNo, error.getMessage()))
+                .onErrorReturn(new ArrayList<MolitStationInfo>());
+    }
+
+    /**
      * 노선별 지하철역 조회
      */
     public Mono<List<MolitStationInfo>> getStationsByLine(String lineNumber) {
@@ -97,14 +182,26 @@ public class MolitApiClient {
         }
         
         return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/SubwayInfoService/getSubwaySttnList")
-                        .queryParam("serviceKey", serviceKey)
-                        .queryParam("pageNo", 1)
-                        .queryParam("numOfRows", 300)
-                        .queryParam("_type", "json")
-                        .queryParam("subwayRouteId", convertLineNumber(lineNumber))
-                        .build())
+                .uri(uriBuilder -> {
+                    try {
+                        // 완전한 URL을 직접 구성하여 이중 인코딩 방지
+                        String encodedServiceKey = URLEncoder.encode(serviceKey, StandardCharsets.UTF_8);
+                        String encodedRouteId = URLEncoder.encode(convertLineNumber(lineNumber), StandardCharsets.UTF_8);
+                        
+                        String fullUrl = String.format(
+                            "%s/SubwayInfoService/getSubwaySttnList?serviceKey=%s&pageNo=1&numOfRows=300&_type=json&subwayRouteId=%s",
+                            uriBuilder.build().toString(), // base URL
+                            encodedServiceKey,
+                            encodedRouteId
+                        );
+                        
+                        logger.info("Final MOLIT API URL: {}", fullUrl);
+                        return java.net.URI.create(fullUrl);
+                    } catch (Exception e) {
+                        logger.error("URI building failed: {}", e.getMessage());
+                        throw new RuntimeException("Failed to build MOLIT API URI", e);
+                    }
+                })
                 .retrieve()
                 .bodyToMono(MolitApiResponse.class)
                 .map(response -> {
@@ -152,14 +249,41 @@ public class MolitApiClient {
                 
                 @SuppressWarnings("unchecked")
                 public List<MolitStationInfo> getItemsList() {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    
                     if (items instanceof List) {
-                        return (List<MolitStationInfo>) items;
+                        List<?> itemList = (List<?>) items;
+                        List<MolitStationInfo> result = new ArrayList<>();
+                        
+                        for (Object item : itemList) {
+                            try {
+                                // LinkedHashMap을 MolitStationInfo로 변환
+                                MolitStationInfo stationInfo = mapper.convertValue(item, MolitStationInfo.class);
+                                result.add(stationInfo);
+                            } catch (Exception e) {
+                                // 변환 실패 시 로그만 출력하고 건너뛰기
+                                System.err.println("Failed to convert item to MolitStationInfo: " + e.getMessage());
+                            }
+                        }
+                        return result;
+                        
                     } else if (items instanceof java.util.Map) {
                         // Sometimes items comes as {"item": [...]}
                         java.util.Map<String, Object> itemsMap = (java.util.Map<String, Object>) items;
                         Object itemList = itemsMap.get("item");
                         if (itemList instanceof List) {
-                            return (List<MolitStationInfo>) itemList;
+                            List<?> list = (List<?>) itemList;
+                            List<MolitStationInfo> result = new ArrayList<>();
+                            
+                            for (Object item : list) {
+                                try {
+                                    MolitStationInfo stationInfo = mapper.convertValue(item, MolitStationInfo.class);
+                                    result.add(stationInfo);
+                                } catch (Exception e) {
+                                    System.err.println("Failed to convert item to MolitStationInfo: " + e.getMessage());
+                                }
+                            }
+                            return result;
                         }
                     }
                     return new ArrayList<>();

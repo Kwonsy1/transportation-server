@@ -1,6 +1,7 @@
 package com.example.transportationserver.controller;
 
 import com.example.transportationserver.dto.StandardApiResponse;
+import com.example.transportationserver.dto.GroupedStationResponse;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.service.IntegratedSubwayDataService;
 import com.example.transportationserver.service.MolitApiClient;
@@ -78,22 +79,55 @@ public class SubwayController {
 
     // === 역 검색 (데이터베이스 기반) === //
     
-    @GetMapping("/stations/search")
+    @GetMapping("/stations/search-grouped")
     @Operation(
-        summary = "역명 검색 (로컬 DB)",
-        description = "역명으로 지하철역 정보 검색 (로컬 데이터베이스 사용)",
+        summary = "역명 검색 (스마트 그룹화된 결과)",
+        description = "역명으로 지하철역 정보 검색 후 정확한 매칭을 우선시하여 그룹화. '강남' 검색 시 '강남역'만 반환하고 '강남구청역'은 제외",
         tags = {"2. 클라이언트 API (DB → 클라이언트)"}
     )
-    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> searchStations(
+    public ResponseEntity<StandardApiResponse<List<GroupedStationResponse>>> searchStationsGrouped(
             @Parameter(description = "검색할 역명", required = true)
             @RequestParam String stationName) {
         
-        logger.info("DB 역명 검색 요청: {}", stationName);
+        logger.info("스마트 그룹화된 역명 검색 요청: {}", stationName);
         
         return ErrorHandler.handleListWithTryCatch(
             () -> {
-                List<SubwayStation> stations = stationService.searchStationsByName(stationName);
-                logger.info("{} DB 검색 결과: {}개 역", stationName, stations.size());
+                List<GroupedStationResponse> groupedStations = stationService.searchStationsGroupedSmart(stationName);
+                logger.info("{} 스마트 그룹화된 검색 결과: {}개 그룹", stationName, groupedStations.size());
+                
+                if (!groupedStations.isEmpty()) {
+                    GroupedStationResponse firstGroup = groupedStations.get(0);
+                    logger.info("첫 번째 그룹: {} ({}개 역, 노선: {})", 
+                        firstGroup.getStationName(), 
+                        firstGroup.getStationCount(),
+                        firstGroup.getLines());
+                }
+                
+                return groupedStations;
+            },
+            "스마트 그룹화된 역명 검색 (" + stationName + ")",
+            logger
+        );
+    }
+    
+    
+    @GetMapping("/stations/search-smart")
+    @Operation(
+        summary = "스마트 역명 검색 (개별 역 반환)",
+        description = "정확한 매칭을 우선시하는 스마트 검색. '강남' 검색 시 '강남역'만 반환하고 '강남구청역'은 제외",
+        tags = {"2. 클라이언트 API (DB → 클라이언트)"}
+    )
+    public ResponseEntity<StandardApiResponse<List<SubwayStation>>> searchStationsSmart(
+            @Parameter(description = "검색할 역명", required = true)
+            @RequestParam String stationName) {
+        
+        logger.info("스마트 역명 검색 요청: {}", stationName);
+        
+        return ErrorHandler.handleListWithTryCatch(
+            () -> {
+                List<SubwayStation> stations = stationService.searchStationsSmart(stationName);
+                logger.info("{} 스마트 검색 결과: {}개 역", stationName, stations.size());
                 
                 if (!stations.isEmpty()) {
                     logger.info("첫 번째 결과: {} ({}호선)", 
@@ -102,7 +136,7 @@ public class SubwayController {
                 
                 return stations;
             },
-            "DB 역명 검색 (" + stationName + ")",
+            "스마트 역명 검색 (" + stationName + ")",
             logger
         );
     }
@@ -219,32 +253,7 @@ public class SubwayController {
         }
     }
 
-    @GetMapping("/health")
-    @Operation(
-        summary = "헬스체크",
-        description = "간단한 헬스체크 엔드포인트",
-        tags = {"3. 기본 유틸리티"}
-    )
-    public ResponseEntity<StandardApiResponse<String>> healthCheck() {
-        return ResponseEntity.ok(StandardApiResponse.success(
-            "OK", 
-            "지하철 API 서비스가 정상 작동 중입니다."
-        ));
-    }
 
-    @GetMapping("/test")
-    @Operation(
-        summary = "간단한 테스트",
-        description = "서버가 정상 작동하는지 확인하는 간단한 테스트",
-        tags = {"4. 테스트 및 디버깅"}
-    )
-    public ResponseEntity<Map<String, String>> simpleTest() {
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "OK");
-        response.put("message", "SubwayController is working");
-        response.put("timestamp", java.time.LocalDateTime.now().toString());
-        return ResponseEntity.ok(response);
-    }
     
     @GetMapping("/debug/api-test")
     @Operation(
@@ -540,83 +549,6 @@ public class SubwayController {
         }
     }
     
-    @GetMapping("/memory/status")
-    @Operation(
-        summary = "메모리 사용량 확인",
-        description = "현재 JVM 메모리 사용량 및 상태 확인",
-        tags = {"3. 기본 유틸리티"}
-    )
-    public ResponseEntity<Map<String, Object>> getMemoryStatus() {
-        try {
-            Runtime runtime = Runtime.getRuntime();
-            Map<String, Object> memoryInfo = new HashMap<>();
-            
-            long maxMemory = runtime.maxMemory();
-            long totalMemory = runtime.totalMemory();
-            long freeMemory = runtime.freeMemory();
-            long usedMemory = totalMemory - freeMemory;
-            
-            memoryInfo.put("maxMemoryMB", maxMemory / 1024 / 1024);
-            memoryInfo.put("totalMemoryMB", totalMemory / 1024 / 1024);
-            memoryInfo.put("usedMemoryMB", usedMemory / 1024 / 1024);
-            memoryInfo.put("freeMemoryMB", freeMemory / 1024 / 1024);
-            memoryInfo.put("usagePercentage", Math.round(((double) usedMemory / maxMemory) * 100 * 100.0) / 100.0);
-            
-            // 메모리 사용량에 따른 상태 판단
-            double usagePercentage = ((double) usedMemory / maxMemory) * 100;
-            String status;
-            if (usagePercentage < 50) {
-                status = "GOOD";
-            } else if (usagePercentage < 80) {
-                status = "WARNING";
-            } else {
-                status = "CRITICAL";
-            }
-            memoryInfo.put("status", status);
-            
-            // GC 실행 가능성 제안
-            if (usagePercentage > 70) {
-                memoryInfo.put("recommendation", "높은 메모리 사용량으로 인해 GC 실행을 권장합니다.");
-            }
-            
-            return ResponseEntity.ok(memoryInfo);
-        } catch (Exception e) {
-            logger.error("메모리 상태 확인 실패", e);
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.internalServerError().body(error);
-        }
-    }
-    
-    @PostMapping("/memory/gc")
-    @Operation(
-        summary = "가비지 컬렉션 실행",
-        description = "System.gc()를 호출하여 메모리 정리 시도 (권장사항일 뿐, 강제 실행은 아님)",
-        tags = {"3. 기본 유틸리티"}
-    )
-    public ResponseEntity<StandardApiResponse<String>> triggerGarbageCollection() {
-        try {
-            Runtime runtime = Runtime.getRuntime();
-            long beforeGC = runtime.totalMemory() - runtime.freeMemory();
-            
-            System.gc();
-            
-            // GC 후 잠깐 대기
-            Thread.sleep(100);
-            
-            long afterGC = runtime.totalMemory() - runtime.freeMemory();
-            long freed = beforeGC - afterGC;
-            
-            String message = String.format("GC 실행 완료. 해제된 메모리: %.2f MB", 
-                freed / 1024.0 / 1024.0);
-            
-            return ResponseEntity.ok(StandardApiResponse.success("COMPLETED", message));
-        } catch (Exception e) {
-            logger.error("GC 실행 실패", e);
-            return ResponseEntity.internalServerError()
-                .body(StandardApiResponse.error("GC 실행 실패: " + e.getMessage(), 500));
-        }
-    }
     
     @GetMapping("/performance/batch-progress")
     @Operation(
