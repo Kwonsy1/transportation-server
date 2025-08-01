@@ -1,6 +1,8 @@
 package com.example.transportationserver.dto;
 
 import com.example.transportationserver.model.SubwayStation;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -9,6 +11,7 @@ import java.util.stream.Collectors;
  * 그룹화된 지하철역 정보를 담는 DTO
  * 같은 이름이고 5km 이내에 있는 역들을 하나로 그룹화
  */
+@JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public class GroupedStationResponse {
     
     private String stationName;
@@ -97,6 +100,7 @@ public class GroupedStationResponse {
     /**
      * 개별 역 상세 정보를 담는 내부 클래스
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class StationDetail {
         private Long id;
         private String lineNumber;

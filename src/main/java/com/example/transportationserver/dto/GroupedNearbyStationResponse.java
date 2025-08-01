@@ -1,6 +1,8 @@
 package com.example.transportationserver.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 import java.util.List;
 
@@ -8,18 +10,15 @@ import java.util.List;
  * 그룹화된 근처 지하철역 조회 API 응답 DTO
  * 같은 역명이고 가까운 거리의 역들을 그룹화하여 반환
  */
+@JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public class GroupedNearbyStationResponse {
     
-    @JsonProperty("stations")
     private List<GroupedNearbyStation> stations;
     
-    @JsonProperty("total_count")
     private int totalCount;
     
-    @JsonProperty("search_radius_km")
     private double searchRadiusKm;
     
-    @JsonProperty("center_coordinates")
     private SearchCenter centerCoordinates;
     
     public GroupedNearbyStationResponse() {}
@@ -48,30 +47,23 @@ public class GroupedNearbyStationResponse {
     /**
      * 그룹화된 근처 지하철역 정보
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class GroupedNearbyStation {
         
-        @JsonProperty("station_name")
         private String stationName;
         
-        @JsonProperty("lines")
         private List<String> lines;
         
-        @JsonProperty("coordinates")
         private Coordinates coordinates; // 그룹의 대표 좌표
         
-        @JsonProperty("distance_km")
         private Double distanceKm; // 그룹의 대표 거리
         
-        @JsonProperty("address")
         private String address; // 그룹의 대표 주소
         
-        @JsonProperty("region")
         private String region;
         
-        @JsonProperty("station_count")
         private int stationCount; // 그룹에 속한 역 개수
         
-        @JsonProperty("details")
         private List<StationDetail> details; // 개별 역 상세 정보
         
         public GroupedNearbyStation() {}
@@ -118,24 +110,19 @@ public class GroupedNearbyStationResponse {
     /**
      * 개별 역 상세 정보
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class StationDetail {
         
-        @JsonProperty("id")
         private Long id;
         
-        @JsonProperty("line_number")
         private String lineNumber;
         
-        @JsonProperty("station_code")
         private String stationCode;
         
-        @JsonProperty("coordinates")
         private Coordinates coordinates;
         
-        @JsonProperty("distance_km")
         private Double distanceKm;
         
-        @JsonProperty("subway_station_id")
         private String subwayStationId;
         
         public StationDetail() {}
@@ -173,12 +160,11 @@ public class GroupedNearbyStationResponse {
     /**
      * 좌표 정보
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class Coordinates {
         
-        @JsonProperty("latitude")
         private Double latitude;
         
-        @JsonProperty("longitude")
         private Double longitude;
         
         public Coordinates() {}
@@ -198,12 +184,11 @@ public class GroupedNearbyStationResponse {
     /**
      * 검색 중심점 정보
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class SearchCenter {
         
-        @JsonProperty("latitude")
         private Double latitude;
         
-        @JsonProperty("longitude")
         private Double longitude;
         
         public SearchCenter() {}

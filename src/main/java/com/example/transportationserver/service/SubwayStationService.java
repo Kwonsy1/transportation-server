@@ -6,6 +6,8 @@ import com.example.transportationserver.dto.GroupedNearbyStationResponse;
 import com.example.transportationserver.model.SubwayStation;
 import com.example.transportationserver.repository.SubwayStationMapper;
 import com.example.transportationserver.util.CoordinateValidator;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -241,6 +243,7 @@ public class SubwayStationService {
     /**
      * 좌표 통계 클래스
      */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     public static class CoordinateStatistics {
         private final int total;
         private final int hasCoordinates;

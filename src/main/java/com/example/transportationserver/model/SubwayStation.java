@@ -1,8 +1,11 @@
 package com.example.transportationserver.model;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public class SubwayStation {
     
     private Long id;

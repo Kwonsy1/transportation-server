@@ -121,6 +121,10 @@ public class StationNameResolver {
      * 지역명 표준화
      */
     private String normalizeRegionName(String region) {
+        if (region == null || region.trim().isEmpty()) {
+            return "미분류";
+        }
+        
         for (Map.Entry<String, String> entry : REGION_KEYWORDS.entrySet()) {
             if (region.contains(entry.getKey())) {
                 return entry.getValue();
