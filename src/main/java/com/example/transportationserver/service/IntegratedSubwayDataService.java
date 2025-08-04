@@ -12,12 +12,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import com.example.transportationserver.dto.SubwayStationApiDto;
 
 /**
  * 통합 지하철 데이터 동기화 서비스
@@ -129,9 +131,66 @@ public class IntegratedSubwayDataService {
      * 서울시 API에서 역명 수집
      */
     private Set<String> collectSeoulStationNames() {
-        // 기존 KoreanSubwayApiClient 활용
-        // TODO: 구현 필요
-        return Set.of("강남", "서울역", "시청", "교대", "잠실"); // 임시 데이터
+        logger.info("서울시 API에서 전체 지하철역 데이터 수집 시작");
+        Set<String> stationNames = new HashSet<>();
+        
+        try {
+            // 서울 지하철 API에서 전체 데이터 수집 (페이징 처리)
+            int pageSize = 1000; // 한 번에 가져올 데이터 수
+            int maxPages = 10;   // 최대 페이지 수 (안전장치)
+            
+            for (int page = 0; page < maxPages; page++) {
+                int startIndex = page * pageSize + 1;
+                int endIndex = (page + 1) * pageSize;
+                
+                logger.info("서울 API 페이지 {} 요청: {}-{}", page + 1, startIndex, endIndex);
+                
+                try {
+                    List<SubwayStationApiDto> stations = seoulApiClient.getAllStations(startIndex, endIndex)
+                        .block(Duration.ofSeconds(30)); // 30초 타임아웃
+                    
+                    if (stations == null || stations.isEmpty()) {
+                        logger.info("서울 API 페이지 {}에서 데이터 없음. 수집 종료", page + 1);
+                        break;
+                    }
+                    
+                    // 역명 추출 및 정리
+                    Set<String> pageStationNames = stations.stream()
+                        .map(SubwayStationApiDto::getStationName)
+                        .filter(name -> name != null && !name.trim().isEmpty())
+                        .map(String::trim)
+                        .collect(Collectors.toSet());
+                    
+                    stationNames.addAll(pageStationNames);
+                    logger.info("서울 API 페이지 {} 완료: {}개 역명 수집 (누적: {}개)", 
+                              page + 1, pageStationNames.size(), stationNames.size());
+                    
+                    // 데이터가 pageSize보다 적으면 마지막 페이지
+                    if (stations.size() < pageSize) {
+                        logger.info("마지막 페이지 도달. 서울 API 수집 완료");
+                        break;
+                    }
+                    
+                    // API 호출 제한 준수
+                    rateLimitService.waitForSeoulApi();
+                    
+                } catch (Exception e) {
+                    logger.warn("서울 API 페이지 {} 호출 실패: {}", page + 1, e.getMessage());
+                    // 에러가 발생해도 다음 페이지 시도
+                    continue;
+                }
+            }
+            
+            logger.info("서울시 API 데이터 수집 완료: 총 {}개 역명", stationNames.size());
+            
+        } catch (Exception e) {
+            logger.error("서울시 API 데이터 수집 중 전체적인 오류 발생", e);
+            // 오류 발생 시 기본 주요 역명 반환
+            stationNames.addAll(Set.of("강남", "서울역", "시청", "교대", "잠실", "신림", "홍대입구", "건대입구", "성신여대입구"));
+            logger.warn("서울 API 오류로 기본 역명 사용: {}개 역명", stationNames.size());
+        }
+        
+        return stationNames;
     }
     
     /**
@@ -140,25 +199,49 @@ public class IntegratedSubwayDataService {
     private CompletableFuture<Map<String, List<MolitApiClient.MolitStationInfo>>> collectMolitDataAsync(Set<String> stationNames) {
         logger.info("MOLIT API 데이터 수집 시작: {} 개 역", stationNames.size());
         
+        AtomicInteger processedCount = new AtomicInteger(0);
+        AtomicInteger successCount = new AtomicInteger(0);
+        int totalCount = stationNames.size();
+        
         return Flux.fromIterable(stationNames)
             .flatMap(stationName -> 
                 rateLimiter.executeLimited(
                     ReactiveRateLimiter.ApiType.MOLIT,
                     molitApiClient.getStationDetails(stationName)
                         .doOnSuccess(data -> {
+                            int processed = processedCount.incrementAndGet();
                             if (data != null && !data.isEmpty()) {
-                                logger.debug("MOLIT 데이터 수집 성공: {} -> {} 개 결과", stationName, data.size());
+                                int success = successCount.incrementAndGet();
+                                logger.info("MOLIT 데이터 수집 성공: {} -> {} 개 결과 [{}/{}]", 
+                                          stationName, data.size(), processed, totalCount);
+                            } else {
+                                logger.debug("MOLIT 데이터 없음: {} [{}/{}]", stationName, processed, totalCount);
+                            }
+                            
+                            // 진행률 로깅 (10% 단위)
+                            if (processed % Math.max(1, totalCount / 10) == 0 || processed == totalCount) {
+                                double progress = (double) processed / totalCount * 100;
+                                logger.info("MOLIT API 진행률: {:.1f}% ({}/{}) - 성공: {}개", 
+                                          progress, processed, totalCount, successCount.get());
                             }
                         })
                         .onErrorResume(error -> {
-                            logger.warn("MOLIT API 호출 실패: {}, 오류: {}", stationName, error.getMessage());
+                            int processed = processedCount.incrementAndGet();
+                            logger.warn("MOLIT API 호출 실패: {} - {} [{}/{}]", 
+                                      stationName, error.getMessage(), processed, totalCount);
                             return Mono.just(Collections.emptyList());
                         })
                         .map(data -> Map.entry(stationName, data))
-                ), 5) // 최대 5개 동시 처리
+                ), 3) // 동시 처리 수를 3개로 조정 (안정성)
             .filter(entry -> !entry.getValue().isEmpty())
             .collectMap(Map.Entry::getKey, Map.Entry::getValue)
-            .doOnSuccess(result -> logger.info("MOLIT 데이터 수집 완료: {} 개 역", result.size()))
+            .doOnSuccess(result -> {
+                logger.info("MOLIT 데이터 수집 완료: 성공 {}개 / 전체 {}개 역 (성공률: {:.1f}%)", 
+                          result.size(), totalCount, (double) result.size() / totalCount * 100);
+            })
+            .doOnError(error -> {
+                logger.error("MOLIT 데이터 수집 중 전체적인 오류 발생", error);
+            })
             .toFuture();
     }
     

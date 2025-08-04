@@ -71,29 +71,22 @@ public class SubwayStationIdUpdateService {
                                 continue;
                             }
                             
-                            // 역명 정규화 (끝의 공백 제거)
-                            stationName = stationName.trim();
+                            // 역명 정규화
+                            String normalizedStationName = normalizeStationName(stationName);
                             
                             // 호선명을 표준 형식으로 변환
                             String normalizedLineNumber = normalizeLineNumber(routeName);
                             
-                            // 데이터베이스 업데이트
-                            int updateCount = subwayStationMapper.updateSubwayStationId(
-                                stationName, normalizedLineNumber, subwayStationId);
+                            // 다양한 매칭 시도
+                            boolean updated = tryUpdateWithMultipleStrategies(
+                                stationName, normalizedStationName, normalizedLineNumber, subwayStationId);
                                 
-                            if (updateCount > 0) {
+                            if (updated) {
                                 successfulUpdates.incrementAndGet();
-                                logger.debug("업데이트 성공: {} ({}) -> {}", stationName, normalizedLineNumber, subwayStationId);
+                                logger.debug("업데이트 성공: {} -> {}", stationName, subwayStationId);
                             } else {
-                                // 호선명 없이도 시도
-                                int updateCountWithoutLine = tryUpdateWithoutLineNumber(stationName, subwayStationId);
-                                if (updateCountWithoutLine > 0) {
-                                    successfulUpdates.incrementAndGet();
-                                    logger.debug("호선명 없이 업데이트 성공: {} -> {}", stationName, subwayStationId);
-                                } else {
-                                    failedUpdates.incrementAndGet();
-                                    logger.debug("업데이트 실패: {} ({}) - 매칭되는 역이 없음", stationName, normalizedLineNumber);
-                                }
+                                failedUpdates.incrementAndGet();
+                                logger.debug("업데이트 실패: {} ({}) - 매칭되는 역이 없음", stationName, normalizedLineNumber);
                             }
                             
                         } catch (Exception e) {
@@ -136,7 +129,37 @@ public class SubwayStationIdUpdateService {
     }
     
     /**
-     * 호선명을 표준 형식으로 변환
+     * 역명을 정규화하여 매칭률을 높임
+     */
+    private String normalizeStationName(String stationName) {
+        if (stationName == null) return null;
+        
+        String normalized = stationName.trim();
+        
+        // 괄호 안의 부가 정보 처리 (선택적으로 제거할 수 있도록 원본도 반환)
+        // 예: "잠실(송파구청)" -> "잠실"
+        if (normalized.contains("(") && normalized.contains(")")) {
+            // 괄호 안 내용이 있는 경우 원본 그대로 먼저 시도
+            return normalized;
+        }
+        
+        // 특수 문자 정리
+        normalized = normalized.replaceAll("\\s+", ""); // 공백 제거
+        
+        // 역명 별칭 매핑
+        Map<String, String> stationMapping = Map.of(
+            "서울역", "서울",
+            "김포공항", "김포공항",
+            "인천공항1터미널", "인천국제공항",
+            "인천공항2터미널", "인천국제공항화물터미널",
+            "디지털미디어시티", "디지털미디어시티"
+        );
+        
+        return stationMapping.getOrDefault(normalized, normalized);
+    }
+    
+    /**
+     * 호선명을 표준 형식으로 변환 (개선된 버전)
      */
     private String normalizeLineNumber(String routeName) {
         if (routeName == null) return null;
@@ -149,29 +172,94 @@ public class SubwayStationIdUpdateService {
             return routeName;
         }
         
-        // 특수 노선명 매핑
+        // 특수 노선명 매핑 (확장된 버전)
         Map<String, String> lineMapping = Map.of(
             "공항", "공항철도",
+            "신분당", "신분당선",
             "분당선", "수인분당선",
-            "수인선", "수인분당선",
+            "수인선", "수인분당선", 
+            "수인분당", "수인분당선",
             "경춘선", "경춘선",
             "경의선", "경의중앙선",
-            "중앙선", "경의중앙선"
+            "중앙선", "경의중앙선",
+            "에버라인", "에버라인"
         );
         
         return lineMapping.getOrDefault(routeName, routeName);
     }
     
     /**
-     * 호선명 없이 역명만으로 업데이트 시도
+     * 여러 전략으로 매칭을 시도하여 성공률을 높임
      */
-    private int tryUpdateWithoutLineNumber(String stationName, String subwayStationId) {
-        try {
-            // 같은 이름의 역 중 subway_station_id가 null인 첫 번째 역만 업데이트
-            return subwayStationMapper.updateSubwayStationId(stationName, null, subwayStationId);
-        } catch (Exception e) {
-            logger.debug("호선명 없이 업데이트 시도 실패: {}", stationName, e);
-            return 0;
+    private boolean tryUpdateWithMultipleStrategies(String originalStationName, String normalizedStationName, 
+                                                   String normalizedLineNumber, String subwayStationId) {
+        
+        // 전략 1: 원본 역명 + 정규화된 호선명
+        int updateCount = subwayStationMapper.updateSubwayStationId(
+            originalStationName, normalizedLineNumber, subwayStationId);
+        if (updateCount > 0) {
+            logger.debug("전략1 성공: {} + {}", originalStationName, normalizedLineNumber);
+            return true;
         }
+        
+        // 전략 2: 정규화된 역명 + 정규화된 호선명
+        if (!originalStationName.equals(normalizedStationName)) {
+            updateCount = subwayStationMapper.updateSubwayStationId(
+                normalizedStationName, normalizedLineNumber, subwayStationId);
+            if (updateCount > 0) {
+                logger.debug("전략2 성공: {} + {}", normalizedStationName, normalizedLineNumber);
+                return true;
+            }
+        }
+        
+        // 전략 3: 괄호 제거한 역명 시도
+        String stationNameWithoutParentheses = removeParentheses(originalStationName);
+        if (!stationNameWithoutParentheses.equals(originalStationName)) {
+            updateCount = subwayStationMapper.updateSubwayStationId(
+                stationNameWithoutParentheses, normalizedLineNumber, subwayStationId);
+            if (updateCount > 0) {
+                logger.debug("전략3 성공: {} + {}", stationNameWithoutParentheses, normalizedLineNumber);
+                return true;
+            }
+        }
+        
+        // 전략 4: 원본 역명 + 호선명 없이
+        updateCount = subwayStationMapper.updateSubwayStationId(
+            originalStationName, null, subwayStationId);
+        if (updateCount > 0) {
+            logger.debug("전략4 성공: {} (호선명 없이)", originalStationName);
+            return true;
+        }
+        
+        // 전략 5: 정규화된 역명 + 호선명 없이
+        if (!originalStationName.equals(normalizedStationName)) {
+            updateCount = subwayStationMapper.updateSubwayStationId(
+                normalizedStationName, null, subwayStationId);
+            if (updateCount > 0) {
+                logger.debug("전략5 성공: {} (호선명 없이)", normalizedStationName);
+                return true;
+            }
+        }
+        
+        // 전략 6: 괄호 제거한 역명 + 호선명 없이
+        if (!stationNameWithoutParentheses.equals(originalStationName)) {
+            updateCount = subwayStationMapper.updateSubwayStationId(
+                stationNameWithoutParentheses, null, subwayStationId);
+            if (updateCount > 0) {
+                logger.debug("전략6 성공: {} (호선명 없이)", stationNameWithoutParentheses);
+                return true;
+            }
+        }
+        
+        return false;
     }
+    
+    /**
+     * 괄호와 그 안의 내용을 제거
+     */
+    private String removeParentheses(String stationName) {
+        if (stationName == null) return null;
+        return stationName.replaceAll("\\([^)]*\\)", "").trim();
+    }
+    
 }

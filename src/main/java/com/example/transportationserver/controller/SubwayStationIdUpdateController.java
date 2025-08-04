@@ -20,7 +20,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/admin")
-@Tag(name = "4. 관리자 API", description = "데이터 관리 및 업데이트 API")
 public class SubwayStationIdUpdateController {
     
     private static final Logger logger = LoggerFactory.getLogger(SubwayStationIdUpdateController.class);
@@ -34,8 +33,7 @@ public class SubwayStationIdUpdateController {
     @Operation(
         summary = "지하철역 ID 대량 업데이트",
         description = "MOLIT API에서 전체 지하철역의 subwayStationId를 가져와서 데이터베이스를 업데이트합니다. " +
-                      "총 1092개의 역 데이터를 처리하며, 완료까지 1-2분 소요됩니다.",
-        tags = {"4. 관리자 API"}
+                      "총 1092개의 역 데이터를 처리하며, 완료까지 1-2분 소요됩니다."
     )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "업데이트 완료"),
@@ -64,8 +62,7 @@ public class SubwayStationIdUpdateController {
      */
     @Operation(
         summary = "업데이트 상태 확인",
-        description = "현재 데이터베이스에서 subwayStationId가 설정된 역의 개수를 확인합니다.",
-        tags = {"4. 관리자 API"}
+        description = "현재 데이터베이스에서 subwayStationId가 설정된 역의 개수를 확인합니다."
     )
     @GetMapping("/subway-station-id-status")
     public ResponseEntity<StandardApiResponse<Map<String, Object>>> getUpdateStatus() {

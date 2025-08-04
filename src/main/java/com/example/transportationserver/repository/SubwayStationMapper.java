@@ -64,9 +64,9 @@ public interface SubwayStationMapper {
                          @Param("latitude") Double latitude, 
                          @Param("longitude") Double longitude);
                          
-    @Update("UPDATE subway_stations SET subway_station_id = #{subwayStationId}, updated_at = CURRENT_TIMESTAMP WHERE name = #{name} AND (#{lineNumber} IS NULL OR line_number = #{lineNumber}) AND subway_station_id IS NULL LIMIT 1")
+    @Update("UPDATE subway_stations SET subway_station_id = #{subwayStationId} WHERE id = (SELECT id FROM subway_stations WHERE name = #{name} AND (#{lineNumber,jdbcType=VARCHAR} IS NULL OR line_number = #{lineNumber,jdbcType=VARCHAR}) LIMIT 1)")
     int updateSubwayStationId(@Param("name") String name,
-                             @Param("lineNumber") String lineNumber,
+                             @Param("lineNumber") String lineNumber,  
                              @Param("subwayStationId") String subwayStationId);
     
     /**
